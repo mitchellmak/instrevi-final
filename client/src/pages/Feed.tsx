@@ -12,7 +12,7 @@ const Feed: React.FC = () => {
 
   const fetchPosts = async () => {
     try {
-      const response = await fetch('https://instrevi.onrender.com/api/posts');
+      const response = await fetch('https://instrevi-api.onrender.com/api/posts');
       if (response.ok) {
         const data = await response.json();
         setPosts(data);
@@ -27,7 +27,7 @@ const Feed: React.FC = () => {
   const handleLike = async (postId: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`https://instrevi.onrender.com/api/posts/${postId}/like`, {
+      const response = await fetch(`https://instrevi-api.onrender.com/api/posts/${postId}/like`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -36,7 +36,7 @@ const Feed: React.FC = () => {
       });
 
       if (response.ok) {
-        fetchPosts(); // Refresh posts to update like count
+        fetchPosts();
       }
     } catch (error) {
       console.error('Error liking post:', error);
@@ -46,7 +46,7 @@ const Feed: React.FC = () => {
   const handleComment = async (postId: string, text: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`https://instrevi.onrender.com/api/posts/${postId}/comment`, {
+      const response = await fetch(`https://instrevi-api.onrender.com/api/posts/${postId}/comment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -56,7 +56,7 @@ const Feed: React.FC = () => {
       });
 
       if (response.ok) {
-        fetchPosts(); // Refresh posts to show new comment
+        fetchPosts();
       }
     } catch (error) {
       console.error('Error commenting:', error);
@@ -71,7 +71,7 @@ const Feed: React.FC = () => {
     <div className="container" style={{ maxWidth: '614px', margin: '0 auto', padding: '20px 0' }}>
       {posts.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px', color: '#8e8e8e' }}>
-          No posts yet. Follow some users to see their posts!
+          No posts yet. Be the first to share something!
         </div>
       ) : (
         posts.map((post) => (
