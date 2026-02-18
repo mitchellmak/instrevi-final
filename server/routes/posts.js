@@ -14,8 +14,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Multer setup for file upload
-const upload = require('../middleware/upload');
+// Multer setup for file upload (already imported above)
 
 // Get all posts (feed)
 router.get('/', async (req, res) => {
