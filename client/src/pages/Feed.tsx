@@ -12,7 +12,7 @@ const Feed: React.FC = () => {
 
   const fetchPosts = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/posts');
+      const response = await fetch('https://instrevi.onrender.com/api/posts');
       if (response.ok) {
         const data = await response.json();
         setPosts(data);
@@ -27,7 +27,7 @@ const Feed: React.FC = () => {
   const handleLike = async (postId: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/posts/${postId}/like`, {
+      const response = await fetch(`https://instrevi.onrender.com/api/posts/${postId}/like`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -46,7 +46,7 @@ const Feed: React.FC = () => {
   const handleComment = async (postId: string, text: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/posts/${postId}/comment`, {
+      const response = await fetch(`https://instrevi.onrender.com/api/posts/${postId}/comment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
