@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Post } from '../types';
 import PostCard from '../components/PostCard';
+import PostUploader from '../components/PostUploader';
+import { useAuth } from '../hooks/useAuth';
+
+const API_BASE = process.env.REACT_APP_API_URL || 'https://instrevi-api.onrender.com';
 
 const Feed: React.FC = () => {
+  const { token } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -12,7 +17,7 @@ const Feed: React.FC = () => {
 
   const fetchPosts = async () => {
     try {
-      const response = await fetch('https://instrevi.onrender.com/api/posts');
+      const response = await fetch(`${API_BASE}/api/posts`);
       if (response.ok) {
         const data = await response.json();
         setPosts(data);
@@ -26,8 +31,8 @@ const Feed: React.FC = () => {
 
   const handleLike = async (postId: string) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`https://instrevi.onrender.com/api/posts/${postId}/like`, {
+      // token from useAuth()
+      const response = await fetch(`${API_BASE}/api/posts/${postId}/like`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -36,7 +41,7 @@ const Feed: React.FC = () => {
       });
 
       if (response.ok) {
-        fetchPosts(); // Refresh posts to update like count
+        fetchPosts();
       }
     } catch (error) {
       console.error('Error liking post:', error);
@@ -45,8 +50,8 @@ const Feed: React.FC = () => {
 
   const handleComment = async (postId: string, text: string) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`https://instrevi.onrender.com/api/posts/${postId}/comment`, {
+      // token from useAuth()
+      const response = await fetch(`${API_BASE}/api/posts/${postId}/comment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -56,7 +61,7 @@ const Feed: React.FC = () => {
       });
 
       if (response.ok) {
-        fetchPosts(); // Refresh posts to show new comment
+        fetchPosts();
       }
     } catch (error) {
       console.error('Error commenting:', error);
@@ -69,9 +74,11 @@ const Feed: React.FC = () => {
 
   return (
     <div className="container" style={{ maxWidth: '614px', margin: '0 auto', padding: '20px 0' }}>
+      <PostUploader onUploadSuccess={fetchPosts} />
+
       {posts.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px', color: '#8e8e8e' }}>
-          No posts yet. Follow some users to see their posts!
+          No posts yet. Be the first to share something!
         </div>
       ) : (
         posts.map((post) => (
