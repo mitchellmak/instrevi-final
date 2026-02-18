@@ -1,15 +1,29 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 
 const Register: React.FC = () => {
   const [username, setUsername] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [middleName, setMiddleName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const { register } = useAuth();
+  const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement registration logic
-    console.log('Registration attempt:', { username, email, password });
+    setError('');
+    try {
+      const data = await register(username, email, password, firstName, middleName, lastName);
+      // redirect to verification page and pass verificationToken in state for dev convenience
+      navigate('/verify-email', { state: { verificationToken: (data && data.verificationToken) || null, email } });
+    } catch (err) {
+      console.error(err);
+      setError('Registration failed');
+    }
   };
 
   return (
@@ -18,6 +32,7 @@ const Register: React.FC = () => {
         <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Sign Up</h2>
         
         <form onSubmit={handleSubmit}>
+          {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
           <input
             type="text"
             placeholder="Username"
@@ -25,6 +40,30 @@ const Register: React.FC = () => {
             onChange={(e) => setUsername(e.target.value)}
             className="form-input"
             required
+          />
+
+          <input
+            type="text"
+            placeholder="First name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            className="form-input"
+          />
+
+          <input
+            type="text"
+            placeholder="Middle name (optional)"
+            value={middleName}
+            onChange={(e) => setMiddleName(e.target.value)}
+            className="form-input"
+          />
+
+          <input
+            type="text"
+            placeholder="Last name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            className="form-input"
           />
           
           <input

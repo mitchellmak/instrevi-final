@@ -1,7 +1,11 @@
 export interface User {
   id: string;
   username: string;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
   email: string;
+  emailVerified?: boolean;
   profilePicture?: string;
   bio?: string;
   followers: User[];

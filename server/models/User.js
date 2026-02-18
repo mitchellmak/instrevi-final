@@ -9,6 +9,9 @@ const userSchema = new mongoose.Schema({
     minlength: 3,
     maxlength: 30
   },
+  firstName: { type: String, default: '' },
+  middleName: { type: String, default: '' },
+  lastName: { type: String, default: '' },
   email: {
     type: String,
     required: true,
@@ -20,6 +23,11 @@ const userSchema = new mongoose.Schema({
     required: true,
     minlength: 6
   },
+  emailVerified: { type: Boolean, default: false },
+  emailVerificationToken: { type: String },
+  emailVerificationExpires: { type: Date },
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date },
   profilePicture: {
     type: String,
     default: ''

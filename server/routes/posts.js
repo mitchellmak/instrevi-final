@@ -1,6 +1,7 @@
 const express = require('express');
 const upload = require('../middleware/upload');
 const cloudinary = require('cloudinary').v2;
+const fs = require('fs');
 const Post = require('../models/Post');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
@@ -14,8 +15,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Multer setup for file upload
-const upload = require('../middleware/upload');
+// Multer setup for file upload (already imported above)
 
 // Get all posts (feed)
 router.get('/', async (req, res) => {
@@ -42,6 +42,11 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
 
     // Upload image to Cloudinary
     const result = await cloudinary.uploader.upload(req.file.path);
+
+    // remove temporary file from server
+    fs.unlink(req.file.path, (err) => {
+      if (err) console.error('Failed to remove temp file:', err);
+    });
     
     // Create post
     const post = new Post({
