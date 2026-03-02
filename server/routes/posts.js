@@ -24,37 +24,120 @@ router.get('/', async (req, res) => {
       .populate('user', 'username profilePicture')
       .populate('comments.user', 'username profilePicture')
       .sort({ createdAt: -1 });
-    
-    res.json(posts);
+
+    const postObjects = posts
+      .filter((post) => post.user)
+      .map((post) => {
+        const postObject = post.toObject();
+        postObject.comments = Array.isArray(postObject.comments)
+          ? postObject.comments.filter((comment) => comment && comment.user)
+          : [];
+        return postObject;
+      });
+    const reviewTotals = new Map();
+
+    const getReviewKey = (post) => {
+      if (!post || post.postType !== 'review') return null;
+      const title = typeof post.title === 'string' ? post.title.trim().toLowerCase() : '';
+      const category = typeof post.category === 'string' ? post.category.trim().toLowerCase() : '';
+      if (!title || !category) return null;
+      return `${category}|${title}`;
+    };
+
+    for (const post of postObjects) {
+      const key = getReviewKey(post);
+      if (!key || typeof post.rating !== 'number') continue;
+
+      const current = reviewTotals.get(key) || { totalRating: 0, totalRatingsCount: 0 };
+      current.totalRating += post.rating;
+      current.totalRatingsCount += 1;
+      reviewTotals.set(key, current);
+    }
+
+    const postsWithTotals = postObjects.map((post) => {
+      if (post.postType !== 'review') return post;
+
+      const key = getReviewKey(post);
+      const aggregate = key ? reviewTotals.get(key) : null;
+      const fallbackTotal = typeof post.rating === 'number' ? post.rating : 0;
+
+      return {
+        ...post,
+        totalRating: aggregate ? aggregate.totalRating : fallbackTotal,
+        totalRatingsCount: aggregate ? aggregate.totalRatingsCount : (typeof post.rating === 'number' ? 1 : 0)
+      };
+    });
+
+    res.json(postsWithTotals);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Create post
-router.post('/', auth, upload.single('image'), async (req, res) => {
+// Create post (supports review, unboxing, and general posts)
+router.post('/', auth, upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'images', maxCount: 10 }
+]), async (req, res) => {
   try {
-    const { caption } = req.body;
+    const { caption, postType, title, category, rating, stats } = req.body;
     
-    if (!req.file) {
-      return res.status(400).json({ message: 'Image is required' });
+    // Get files from either 'image' or 'images' field
+    let files = [];
+    if (req.files && req.files.image) {
+      files = req.files.image;
+    } else if (req.files && req.files.images) {
+      files = req.files.images;
+    }
+    
+    if (!files || files.length === 0) {
+      return res.status(400).json({ message: 'At least one image is required' });
     }
 
-    // Upload image to Cloudinary
-    const result = await cloudinary.uploader.upload(req.file.path);
+    // Upload images to Cloudinary
+    const uploadedImages = [];
+    try {
+      for (const file of files) {
+        const result = await cloudinary.uploader.upload(file.path);
+        uploadedImages.push(result.secure_url);
+        
+        // Remove temporary file from server
+        fs.unlink(file.path, (err) => {
+          if (err) console.error('Failed to remove temp file:', err);
+        });
+      }
+    } catch (uploadError) {
+      console.error('Cloudinary upload error:', uploadError);
+      return res.status(500).json({ message: 'Failed to upload images: ' + uploadError.message });
+    }
 
-    // remove temporary file from server
-    fs.unlink(req.file.path, (err) => {
-      if (err) console.error('Failed to remove temp file:', err);
-    });
-    
-    // Create post
-    const post = new Post({
+    // Create post object based on type
+    const postData = {
       caption,
-      image: result.secure_url,
-      user: req.user.userId // This would come from auth middleware
-    });
+      image: uploadedImages[0], // First image as main image
+      user: req.user.userId,
+      postType: postType || 'general'
+    };
 
+    // Add optional fields based on post type
+    if (title) postData.title = title;
+    if (category) postData.category = category;
+    if (uploadedImages.length > 1) postData.images = uploadedImages;
+
+    // Review-specific fields
+    if (postType === 'review') {
+      if (rating) postData.rating = parseInt(rating);
+      if (stats) {
+        try {
+          postData.stats = JSON.parse(stats);
+        } catch (e) {
+          console.error('Failed to parse stats:', e);
+        }
+      }
+    }
+
+    // Create post
+    const post = new Post(postData);
     await post.save();
     
     // Add post to user's posts array
@@ -63,11 +146,12 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
     });
 
     const populatedPost = await Post.findById(post._id)
-      .populate('user', 'username profilePicture');
+      .populate('user', 'username profilePicture firstName lastName email followers following');
 
     res.status(201).json(populatedPost);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Post creation error:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
   }
 });
 

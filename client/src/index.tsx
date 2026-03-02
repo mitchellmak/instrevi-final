@@ -8,9 +8,17 @@ import { AuthProvider } from './hooks/useAuth';
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
+
+const browserRouterProps: any = {
+  future: {
+    v7_startTransition: true,
+    v7_relativeSplatPath: true,
+  },
+};
+
 root.render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter {...browserRouterProps}>
       <AuthProvider>
         <App />
       </AuthProvider>

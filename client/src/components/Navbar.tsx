@@ -1,15 +1,17 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import UserChip from './UserChip';
 
 const Navbar: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <nav style={{
       backgroundColor: 'white',
       borderBottom: '1px solid #dbdbdb',
-      padding: '0 20px',
+      padding: '0 8px',
       height: '54px',
       display: 'flex',
       alignItems: 'center',
@@ -18,25 +20,20 @@ const Navbar: React.FC = () => {
       top: 0,
       zIndex: 1000
     }}>
-      <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: '975px', margin: '0 auto' }}>
         <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', color: 'black' }}>
-          <img src="/logo.svg" alt="Instrevi" style={{ height: 32, display: 'block' }} />
+          <span style={{ fontSize: '28px', fontWeight: 'bold', letterSpacing: '-1px', color: '#262626' }}>Instrevi</span>
         </Link>
 
-        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-          <Link to="/" style={{ textDecoration: 'none', color: 'black' }}>Home</Link>
-          {!user ? (
-            <>
-              <Link to="/login" style={{ textDecoration: 'none', color: 'black' }}>Login</Link>
-              <Link to="/register" style={{ textDecoration: 'none', color: 'black' }}>Register</Link>
-            </>
-          ) : (
-            <>
-              <Link to={`/profile/${user.id}`} style={{ textDecoration: 'none', color: 'black' }}>{user.username}</Link>
-              <button onClick={logout} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'black' }}>Logout</button>
-            </>
-          )}
-        </div>
+        {user && (
+          <div 
+            onClick={() => navigate('/settings/profile')}
+            style={{ cursor: 'pointer' }}
+            key={user.profilePicture || 'no-avatar'}
+          >
+            <UserChip user={user} avatarSize={32} />
+          </div>
+        )}
       </div>
     </nav>
   );

@@ -2,8 +2,17 @@ const express = require('express');
 const User = require('../models/User');
 const Post = require('../models/Post');
 const auth = require('../middleware/auth');
+const upload = require('../middleware/upload');
+const cloudinary = require('cloudinary').v2;
+const fs = require('fs');
 
 const router = express.Router();
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 // Get user profile
 router.get('/:userId', async (req, res) => {
@@ -78,9 +87,9 @@ router.post('/:userId/follow', auth, async (req, res) => {
 });
 
 // Update user profile
-router.put('/profile', auth, async (req, res) => {
+router.put('/profile', auth, upload.single('profilePicture'), async (req, res) => {
   try {
-    const { username, bio, profilePicture } = req.body;
+    const { username, bio, firstName, middleName, lastName, email } = req.body;
     const userId = req.user.userId; // From auth middleware
 
     const user = await User.findById(userId);
@@ -90,18 +99,38 @@ router.put('/profile', auth, async (req, res) => {
 
     if (username) user.username = username;
     if (bio !== undefined) user.bio = bio;
-    if (profilePicture) user.profilePicture = profilePicture;
+    if (firstName !== undefined) user.firstName = firstName;
+    if (middleName !== undefined) user.middleName = middleName;
+    if (lastName !== undefined) user.lastName = lastName;
+    if (email !== undefined) user.email = email;
+
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path);
+      user.profilePicture = result.secure_url;
+
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error('Failed to remove temp file:', err);
+      });
+    }
 
     await user.save();
 
     res.json({
       id: user._id,
       username: user.username,
+      firstName: user.firstName,
+      middleName: user.middleName,
+      lastName: user.lastName,
       email: user.email,
       profilePicture: user.profilePicture,
-      bio: user.bio
+      bio: user.bio,
+      followers: user.followers,
+      following: user.following,
+      followersCount: user.followers.length,
+      followingCount: user.following.length
     });
   } catch (error) {
+    console.error('Profile update error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
