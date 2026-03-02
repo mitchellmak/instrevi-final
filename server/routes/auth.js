@@ -200,10 +200,15 @@ router.post('/reset-password', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password, recaptchaToken } = req.body;
+    const recaptchaRequired = process.env.RECAPTCHA_REQUIRED === 'true';
 
-    // If reCAPTCHA is configured, verify token
-    if (process.env.RECAPTCHA_SECRET) {
+    // reCAPTCHA can be enforced with RECAPTCHA_REQUIRED=true.
+    // If only RECAPTCHA_SECRET is set, verification is optional and only runs when token is provided.
+    if (recaptchaRequired) {
       if (!recaptchaToken) return res.status(400).json({ message: 'Captcha token missing' });
+      const ok = await verifyRecaptcha(recaptchaToken);
+      if (!ok) return res.status(400).json({ message: 'Captcha verification failed' });
+    } else if (process.env.RECAPTCHA_SECRET && recaptchaToken) {
       const ok = await verifyRecaptcha(recaptchaToken);
       if (!ok) return res.status(400).json({ message: 'Captcha verification failed' });
     }
