@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'https://instrevi-api.onrender.com';
+const API_BASE = process.env.REACT_APP_API_URL || `${window.location.protocol}//${window.location.hostname}:5000`;
 
 const Home: React.FC = () => {
   const [caption, setCaption] = useState('');

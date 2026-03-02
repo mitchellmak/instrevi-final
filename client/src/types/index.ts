@@ -14,13 +14,28 @@ export interface User {
   followingCount: number;
 }
 
+export interface Stat {
+  label: string;
+  value: number;
+}
+
 export interface Post {
   _id: string;
+  postType: 'review' | 'unboxing' | 'general';
+  title?: string;
+  category?: string;
   caption: string;
   image: string;
+  images?: string[];
+  video?: string;
   user: User;
   likes: User[];
   comments: Comment[];
+  rating?: number;
+  totalRating?: number;
+  totalRatingsCount?: number;
+  stats?: Stat[];
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }

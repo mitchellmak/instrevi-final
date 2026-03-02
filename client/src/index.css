@@ -43,14 +43,66 @@ code {
   background: #0095f6;
   color: white;
   border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .btn-primary:hover {
   background: #0081d8;
+}
+
+.btn-primary:disabled {
+  background: #dbdbdb;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn-secondary {
+  background: #efefef;
+  color: #262626;
+  border: 1px solid #dbdbdb;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.btn-secondary:hover {
+  background: #e0e0e0;
+}
+
+.btn-large {
+  width: 100%;
+  padding: 14px;
+  font-size: 15px;
+}
+
+.btn-dark {
+  background: #262626;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.btn-dark:hover {
+  background: #1a1a1a;
+}
+
+.btn-dark:disabled {
+  background: #dbdbdb;
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .form-input {
@@ -65,4 +117,187 @@ code {
 .form-input:focus {
   outline: none;
   border-color: #0095f6;
+}
+
+.settings-shell {
+  min-height: calc(100vh - 54px);
+  background-color: #fafafa;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  max-width: 975px;
+  margin: 0 auto;
+}
+
+.settings-sidebar {
+  width: 280px;
+  background-color: white;
+  border-right: 1px solid #dbdbdb;
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.settings-content {
+  flex: 1;
+  width: 100%;
+  max-width: 695px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.settings-page-title {
+  margin-bottom: 30px;
+}
+
+.settings-page-card {
+  padding: 30px;
+  margin-bottom: 20px;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 30px;
+  border-bottom: 1px solid #dbdbdb;
+}
+
+.friend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 0;
+  border-bottom: 1px solid #efefef;
+  gap: 12px;
+}
+
+.settings-mobile-overlay {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .settings-shell {
+    flex-direction: column;
+    max-width: 100%;
+    position: relative;
+  }
+
+  .settings-sidebar {
+    width: 280px;
+    max-width: 85vw;
+    border-right: 1px solid #dbdbdb;
+    border-bottom: none;
+    padding: 14px 0;
+    position: fixed;
+    top: 54px;
+    left: 0;
+    height: calc(100vh - 54px);
+    z-index: 1200;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 2px 0 16px rgba(0, 0, 0, 0.12);
+  }
+
+  .settings-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .settings-mobile-trigger {
+    display: inline-flex !important;
+  }
+
+  .settings-mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 54px 0 0 0;
+    background: rgba(0, 0, 0, 0.25);
+    z-index: 1100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .settings-mobile-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .settings-nav-link {
+    padding: 10px 14px !important;
+    font-size: 13px;
+  }
+
+  .settings-content {
+    max-width: 100%;
+    padding: 12px 10px;
+  }
+
+  .settings-page-title {
+    margin-bottom: 12px;
+    font-size: 20px;
+  }
+
+  .settings-page-card {
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+  }
+
+  .settings-tabs {
+    gap: 8px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .settings-tab-button {
+    padding: 8px 12px !important;
+    white-space: nowrap;
+  }
+
+  .form-input {
+    padding: 7px 10px;
+    font-size: 14px;
+    margin-bottom: 6px;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-dark {
+    padding: 9px 14px;
+    font-size: 13px;
+  }
+
+  .settings-actions .btn-primary,
+  .settings-actions .btn-secondary {
+    width: 100%;
+    margin-right: 0 !important;
+  }
+
+  .friend-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .friend-row .btn-primary,
+  .friend-row .btn-secondary {
+    width: 100%;
+  }
+
+  .profile-card-header {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 16px !important;
+  }
+
+  .profile-name-grid {
+    grid-template-columns: 1fr !important;
+  }
 }
