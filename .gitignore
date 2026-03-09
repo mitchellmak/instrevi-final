@@ -98,3 +98,6 @@ dist/
 
 # Upload folders
 uploads/
+
+# Local admin prototype (do not commit)
+Admin/
