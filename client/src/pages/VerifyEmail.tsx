@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-
-const API_BASE = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://instrevi-final.onrender.com');
+import { apiFetch } from '../utils/apiFetch';
 
 const VerifyEmail: React.FC = () => {
   const loc = useLocation();
@@ -18,7 +17,7 @@ const VerifyEmail: React.FC = () => {
     setMessage('');
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/verify-email`, {
+      const res = await apiFetch('/api/auth/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),

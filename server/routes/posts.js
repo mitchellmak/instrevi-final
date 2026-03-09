@@ -17,6 +17,23 @@ cloudinary.config({
 
 // Multer setup for file upload (already imported above)
 
+const uploadPostMedia = (req, res, next) => {
+  upload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'images', maxCount: 10 },
+    { name: 'video', maxCount: 1 },
+    { name: 'videos', maxCount: 10 }
+  ])(req, res, (err) => {
+    if (!err) return next();
+
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'File too large. Max upload size is 200MB.' });
+    }
+
+    return res.status(400).json({ message: err.message || 'Media upload failed' });
+  });
+};
+
 // Get all posts (feed)
 router.get('/', async (req, res) => {
   try {
@@ -75,32 +92,43 @@ router.get('/', async (req, res) => {
 });
 
 // Create post (supports review, unboxing, and general posts)
-router.post('/', auth, upload.fields([
-  { name: 'image', maxCount: 1 },
-  { name: 'images', maxCount: 10 }
-]), async (req, res) => {
+router.post('/', auth, uploadPostMedia, async (req, res) => {
   try {
     const { caption, postType, title, category, rating, stats } = req.body;
     
-    // Get files from either 'image' or 'images' field
-    let files = [];
-    if (req.files && req.files.image) {
-      files = req.files.image;
-    } else if (req.files && req.files.images) {
-      files = req.files.images;
-    }
-    
-    if (!files || files.length === 0) {
-      return res.status(400).json({ message: 'At least one image is required' });
+    const multiImageFiles = req.files && req.files.images ? req.files.images : [];
+    const singleImageFiles = req.files && req.files.image ? req.files.image : [];
+    const singleVideoFiles = req.files && req.files.video ? req.files.video : [];
+    const multiVideoFiles = req.files && req.files.videos ? req.files.videos : [];
+    const imageFiles = [...singleImageFiles, ...multiImageFiles];
+    const videoFiles = [...singleVideoFiles, ...multiVideoFiles];
+
+    if (imageFiles.length === 0 && videoFiles.length === 0) {
+      return res.status(400).json({ message: 'At least one photo or video is required' });
     }
 
-    // Upload images to Cloudinary
+    // Upload media to Cloudinary
     const uploadedImages = [];
+    const uploadedVideos = [];
     try {
-      for (const file of files) {
-        const result = await cloudinary.uploader.upload(file.path);
+      for (const file of imageFiles) {
+        const result = await cloudinary.uploader.upload(file.path, {
+          resource_type: 'image'
+        });
         uploadedImages.push(result.secure_url);
-        
+
+        // Remove temporary file from server
+        fs.unlink(file.path, (err) => {
+          if (err) console.error('Failed to remove temp file:', err);
+        });
+      }
+
+      for (const file of videoFiles) {
+        const result = await cloudinary.uploader.upload(file.path, {
+          resource_type: 'video'
+        });
+        uploadedVideos.push(result.secure_url);
+
         // Remove temporary file from server
         fs.unlink(file.path, (err) => {
           if (err) console.error('Failed to remove temp file:', err);
@@ -108,13 +136,13 @@ router.post('/', auth, upload.fields([
       }
     } catch (uploadError) {
       console.error('Cloudinary upload error:', uploadError);
-      return res.status(500).json({ message: 'Failed to upload images: ' + uploadError.message });
+      return res.status(500).json({ message: 'Failed to upload media: ' + uploadError.message });
     }
 
     // Create post object based on type
     const postData = {
       caption,
-      image: uploadedImages[0], // First image as main image
+      image: uploadedImages[0] || uploadedVideos[0],
       user: req.user.userId,
       postType: postType || 'general'
     };
@@ -122,11 +150,15 @@ router.post('/', auth, upload.fields([
     // Add optional fields based on post type
     if (title) postData.title = title;
     if (category) postData.category = category;
+    if (uploadedVideos.length > 0) postData.video = uploadedVideos[0];
+    if (uploadedVideos.length > 0) postData.videos = uploadedVideos;
     if (uploadedImages.length > 1) postData.images = uploadedImages;
 
     // Review-specific fields
     if (postType === 'review') {
-      if (rating) postData.rating = parseInt(rating);
+      if (rating !== undefined && rating !== null && rating !== '') {
+        postData.rating = parseInt(rating, 10);
+      }
       if (stats) {
         try {
           postData.stats = JSON.parse(stats);

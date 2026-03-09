@@ -1,22 +1,26 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../utils/apiFetch';
 
-const API_BASE = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://instrevi-final.onrender.com');
+interface SelectedMediaItem {
+  file: File;
+  preview: string;
+  kind: 'image' | 'video';
+}
 
 const CreateUnboxing: React.FC = () => {
   const { token } = useAuth();
   const navigate = useNavigate();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const chooseFilesInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const videoCameraInputRef = useRef<HTMLInputElement>(null);
+  const selectedMediaRef = useRef<SelectedMediaItem[]>([]);
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Product');
   const [caption, setCaption] = useState('');
-  const [images, setImages] = useState<string[]>([]);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [cameraActive, setCameraActive] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState<SelectedMediaItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -25,81 +29,62 @@ const CreateUnboxing: React.FC = () => {
     'Gaming', 'Toys', 'Home & Garden', 'Other'
   ];
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const newFiles = [...imageFiles, ...files];
-    const newImages = imageFiles.length === 0 ? [...images] : images;
+  const appendSelectedFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
 
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        newImages.push(e.target?.result as string);
-        setImages([...newImages]);
-      };
-      reader.readAsDataURL(file);
+    const additions: SelectedMediaItem[] = Array.from(files).map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+      kind: file.type.startsWith('video/') ? 'video' : 'image'
+    }));
+
+    setSelectedMedia((prev) => [...prev, ...additions]);
+  };
+
+  const handleChooseFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError('');
+    appendSelectedFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError('');
+    appendSelectedFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  const removeMedia = (index: number) => {
+    setSelectedMedia((prev) => {
+      const target = prev[index];
+      if (target?.preview?.startsWith('blob:')) {
+        URL.revokeObjectURL(target.preview);
+      }
+
+      return prev.filter((_, i) => i !== index);
     });
-
-    setImageFiles(newFiles);
   };
 
-  const removeImage = (index: number) => {
-    const newImages = images.filter((_, i) => i !== index);
-    const newFiles = imageFiles.filter((_, i) => i !== index);
-    setImages(newImages);
-    setImageFiles(newFiles);
-  };
+  useEffect(() => {
+    selectedMediaRef.current = selectedMedia;
+  }, [selectedMedia]);
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
+  useEffect(() => {
+    return () => {
+      selectedMediaRef.current.forEach((item) => {
+        if (item.preview.startsWith('blob:')) {
+          URL.revokeObjectURL(item.preview);
+        }
       });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setCameraActive(true);
-      }
-    } catch (err) {
-      setError('Unable to access camera. Please check permissions.');
-    }
-  };
-
-  const stopCamera = () => {
-    if (videoRef.current?.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach((track) => track.stop());
-      setCameraActive(false);
-    }
-  };
-
-  const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const context = canvasRef.current.getContext('2d');
-      if (context) {
-        context.drawImage(videoRef.current, 0, 0);
-        const imageData = canvasRef.current.toDataURL('image/jpeg');
-        setImages([...images, imageData]);
-
-        // Convert canvas to blob for file upload
-        canvasRef.current.toBlob((blob) => {
-          if (blob) {
-            const file = new File([blob], `photo-${Date.now()}.jpg`, {
-              type: 'image/jpeg'
-            });
-            setImageFiles([...imageFiles, file]);
-          }
-        });
-      }
-    }
-  };
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !caption.trim() || images.length === 0) {
-      setError('Please fill in all fields and upload at least one image');
+    if (!title.trim() || !caption.trim() || selectedMedia.length === 0) {
+      setError('Please fill in all fields and upload at least one photo or video');
       return;
     }
 
-    stopCamera();
     setLoading(true);
     setError('');
 
@@ -110,16 +95,18 @@ const CreateUnboxing: React.FC = () => {
       formData.append('category', category);
       formData.append('caption', caption);
 
-      imageFiles.forEach((file, idx) => {
-        formData.append(`images`, file);
+      const imageFiles = selectedMedia.filter((item) => item.kind === 'image').map((item) => item.file);
+      const videoFiles = selectedMedia.filter((item) => item.kind === 'video').map((item) => item.file);
+
+      imageFiles.forEach((file) => {
+        formData.append('images', file);
       });
 
-      // Use first image as main image
-      if (imageFiles.length > 0) {
-        formData.append('image', imageFiles[0]);
-      }
+      videoFiles.forEach((file) => {
+        formData.append('videos', file);
+      });
 
-      const response = await fetch(`${API_BASE}/api/posts`, {
+      const response = await apiFetch('/api/posts', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`
@@ -128,15 +115,36 @@ const CreateUnboxing: React.FC = () => {
       });
 
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || 'Failed to create unboxing post');
+        const errorText = await response.text();
+        let errorMessage = 'Failed to create unboxing post';
+
+        try {
+          const parsed = errorText ? JSON.parse(errorText) : null;
+          if (parsed?.message) {
+            errorMessage = parsed.message;
+          } else if (errorText) {
+            errorMessage = errorText;
+          }
+        } catch {
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+
+        throw new Error(errorMessage);
       }
 
       // Reset form
       setTitle('');
       setCaption('');
-      setImages([]);
-      setImageFiles([]);
+      setSelectedMedia((prev) => {
+        prev.forEach((item) => {
+          if (item.preview.startsWith('blob:')) {
+            URL.revokeObjectURL(item.preview);
+          }
+        });
+        return [];
+      });
 
       navigate('/feed');
     } catch (err) {
@@ -240,16 +248,16 @@ const CreateUnboxing: React.FC = () => {
           </div>
         </div>
 
-        {/* Photo Upload Section */}
+        {/* Media Upload Section */}
         <div style={{ marginBottom: '20px' }}>
           <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '12px' }}>
-            Upload Photos ({images.length} selected) *
+            Upload Video/Photos ({selectedMedia.length} selected) *
           </label>
 
           <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => chooseFilesInputRef.current?.click()}
               style={{
                 flex: 1,
                 padding: '12px',
@@ -276,14 +284,14 @@ const CreateUnboxing: React.FC = () => {
 
             <button
               type="button"
-              onClick={cameraActive ? stopCamera : startCamera}
+              onClick={() => cameraInputRef.current?.click()}
               style={{
                 flex: 1,
                 padding: '12px',
                 border: '2px solid #dbdbdb',
                 borderRadius: '6px',
-                backgroundColor: cameraActive ? '#262626' : 'white',
-                color: cameraActive ? 'white' : '#262626',
+                backgroundColor: 'white',
+                color: '#262626',
                 fontSize: '14px',
                 fontWeight: '500',
                 cursor: 'pointer',
@@ -291,75 +299,69 @@ const CreateUnboxing: React.FC = () => {
                 fontFamily: "'Poppins', sans-serif"
               }}
             >
-              📷 {cameraActive ? 'Stop Camera' : 'Open Camera'}
+              📷 Open Camera
             </button>
 
-            {cameraActive && (
-              <button
-                type="button"
-                onClick={capturePhoto}
-                style={{
-                  padding: '12px 20px',
-                  backgroundColor: '#0095f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: 'pointer',
-                  fontFamily: "'Poppins', sans-serif"
-                }}
-              >
-                Snap
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => videoCameraInputRef.current?.click()}
+              style={{
+                flex: 1,
+                padding: '12px',
+                border: '2px solid #dbdbdb',
+                borderRadius: '6px',
+                backgroundColor: 'white',
+                color: '#262626',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                fontFamily: "'Poppins', sans-serif"
+              }}
+            >
+              🎥 Open Video Camera
+            </button>
           </div>
 
           <input
-            ref={fileInputRef}
+            ref={chooseFilesInputRef}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            onChange={handleChooseFiles}
+            style={{ display: 'none' }}
+          />
+
+          <input
+            ref={cameraInputRef}
             type="file"
             accept="image/*"
-            multiple
-            onChange={handleImageChange}
+            capture="environment"
+            onChange={handleCameraCapture}
             style={{ display: 'none' }}
           />
 
-          {/* Camera Preview */}
-          {cameraActive && (
-            <div style={{
-              marginBottom: '12px',
-              borderRadius: '6px',
-              overflow: 'hidden',
-              backgroundColor: '#000'
-            }}>
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                style={{
-                  width: '100%',
-                  height: '300px',
-                  objectFit: 'cover'
-                }}
-              />
-            </div>
-          )}
-
-          <canvas
-            ref={canvasRef}
+          <input
+            ref={videoCameraInputRef}
+            type="file"
+            accept="video/*"
+            capture="environment"
+            onChange={handleCameraCapture}
             style={{ display: 'none' }}
-            width={300}
-            height={300}
           />
 
-          {/* Image Gallery */}
-          {images.length > 0 && (
+          <div style={{ fontSize: '12px', color: '#8e8e8e', marginBottom: '12px' }}>
+            Use Open Camera for photos and Open Video Camera for recording. If blocked, allow camera permission for this site.
+          </div>
+
+          {/* Media Gallery */}
+          {selectedMedia.length > 0 && (
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
               gap: '8px'
             }}>
-              {images.map((img, idx) => (
+              {selectedMedia.map((item, idx) => (
                 <div
                   key={idx}
                   style={{
@@ -370,21 +372,39 @@ const CreateUnboxing: React.FC = () => {
                     overflow: 'hidden'
                   }}
                 >
-                  <img
-                    src={img}
-                    alt={`Unboxing ${idx + 1}`}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover'
-                    }}
-                  />
+                  {item.kind === 'video' ? (
+                    <video
+                      src={item.preview}
+                      muted
+                      playsInline
+                      controls
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        backgroundColor: '#000'
+                      }}
+                    />
+                  ) : (
+                    <img
+                      src={item.preview}
+                      alt={`Unboxing ${idx + 1}`}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover'
+                      }}
+                    />
+                  )}
                   <button
                     type="button"
-                    onClick={() => removeImage(idx)}
+                    onClick={() => removeMedia(idx)}
                     style={{
                       position: 'absolute',
                       top: '4px',

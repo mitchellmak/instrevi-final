@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "seed:strip-posts": "node scripts/seed-strip-posts.js",
+    "seed:strip-avatars": "node scripts/seed-strip-avatars.js",
+    "seed:strip-cleanup": "node scripts/cleanup-strip-seed.js"
   },
   "dependencies": {
     "express": "^4.18.2",

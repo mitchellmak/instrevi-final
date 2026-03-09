@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../utils/apiFetch';
 
-const API_BASE = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://instrevi-final.onrender.com');
+interface SelectedMediaItem {
+  file: File;
+  preview: string;
+  kind: 'image' | 'video';
+}
 
 const CreateReview: React.FC = () => {
   const { token } = useAuth();
@@ -18,10 +23,13 @@ const CreateReview: React.FC = () => {
   const [tags, setTags] = useState('');
   const [friendsOrAnyone, setFriendsOrAnyone] = useState('');
   const [caption, setCaption] = useState('');
-  const [image, setImage] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<SelectedMediaItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const chooseFilesInputRef = React.useRef<HTMLInputElement>(null);
+  const cameraInputRef = React.useRef<HTMLInputElement>(null);
+  const videoCameraInputRef = React.useRef<HTMLInputElement>(null);
+  const selectedMediaRef = React.useRef<SelectedMediaItem[]>([]);
 
   // For Products category ratings (-5 to +5)
   const [qualityRating, setQualityRating] = useState(0);
@@ -73,22 +81,65 @@ const CreateReview: React.FC = () => {
     }
   }, [reviewCategory, qualityRating, durabilityRating, performanceRating, designRating, valueRating, courtesyRating, professionalismRating, responsivenessRating, serviceValueRating, problemResolutionRating, tasteRating, textureRating, freshnessRating, presentationRating, foodValueRating, cleanlinessRating, maintenanceRating, locationRating, amenitiesRating, valueForMoneyRating]);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImage(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+  const appendSelectedFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const additions: SelectedMediaItem[] = Array.from(files).map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+      kind: file.type.startsWith('video/') ? 'video' : 'image'
+    }));
+
+    setSelectedMedia((prev) => [...prev, ...additions]);
   };
+
+  const handleChooseFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError('');
+    appendSelectedFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError('');
+    appendSelectedFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  const handleVideoCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError('');
+    appendSelectedFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  const removeMedia = (index: number) => {
+    setSelectedMedia((prev) => {
+      const target = prev[index];
+      if (target?.preview?.startsWith('blob:')) {
+        URL.revokeObjectURL(target.preview);
+      }
+
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  useEffect(() => {
+    selectedMediaRef.current = selectedMedia;
+  }, [selectedMedia]);
+
+  useEffect(() => {
+    return () => {
+      selectedMediaRef.current.forEach((item) => {
+        if (item.preview.startsWith('blob:')) {
+          URL.revokeObjectURL(item.preview);
+        }
+      });
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !caption.trim() || !image) {
-      setError('Please fill in all required fields and select an image');
+    if (!title.trim() || !caption.trim() || selectedMedia.length === 0) {
+      setError('Please fill in all required fields and upload at least one photo or video');
       return;
     }
 
@@ -109,7 +160,17 @@ const CreateReview: React.FC = () => {
       formData.append('caption', caption);
       formData.append('tags', tags);
       formData.append('friendsOrAnyone', friendsOrAnyone);
-      formData.append('image', imageFile || '');
+
+      const imageFiles = selectedMedia.filter((item) => item.kind === 'image').map((item) => item.file);
+      const videoFiles = selectedMedia.filter((item) => item.kind === 'video').map((item) => item.file);
+
+      imageFiles.forEach((file) => {
+        formData.append('images', file);
+      });
+
+      videoFiles.forEach((file) => {
+        formData.append('videos', file);
+      });
       
       // Include shop details if applicable
       if (includeShopName) {
@@ -177,7 +238,7 @@ const CreateReview: React.FC = () => {
         formData.append('rating', placesOverallRating.toString());
       }
 
-      const response = await fetch(`${API_BASE}/api/posts`, {
+      const response = await apiFetch('/api/posts', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`
@@ -186,8 +247,23 @@ const CreateReview: React.FC = () => {
       });
 
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || 'Failed to create review');
+        const errorText = await response.text();
+        let errorMessage = 'Failed to create review';
+
+        try {
+          const parsed = errorText ? JSON.parse(errorText) : null;
+          if (parsed?.message) {
+            errorMessage = parsed.message;
+          } else if (errorText) {
+            errorMessage = errorText;
+          }
+        } catch {
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+
+        throw new Error(errorMessage);
       }
 
       navigate('/feed');
@@ -650,39 +726,199 @@ const CreateReview: React.FC = () => {
           />
         </div>
 
-        {/* Image Upload (Open Camera or Choose Image) */}
+        {/* Media Upload (Video/Photos) */}
         <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-            Upload Image *
+          <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '12px' }}>
+            Upload Video/Photos ({selectedMedia.length} selected) *
           </label>
+
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            <button
+              type="button"
+              onClick={() => chooseFilesInputRef.current?.click()}
+              style={{
+                flex: 1,
+                padding: '12px',
+                border: '2px solid #dbdbdb',
+                borderRadius: '6px',
+                backgroundColor: 'white',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                fontFamily: "'Poppins', sans-serif"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#262626';
+                e.currentTarget.style.backgroundColor = '#f9f9f9';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#dbdbdb';
+                e.currentTarget.style.backgroundColor = 'white';
+              }}
+            >
+              📁 Choose Files
+            </button>
+
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              style={{
+                flex: 1,
+                padding: '12px',
+                border: '2px solid #dbdbdb',
+                borderRadius: '6px',
+                backgroundColor: 'white',
+                color: '#262626',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                fontFamily: "'Poppins', sans-serif"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#262626';
+                e.currentTarget.style.backgroundColor = '#f9f9f9';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#dbdbdb';
+                e.currentTarget.style.backgroundColor = 'white';
+              }}
+            >
+              📷 Open Camera
+            </button>
+
+            <button
+              type="button"
+              onClick={() => videoCameraInputRef.current?.click()}
+              style={{
+                flex: 1,
+                padding: '12px',
+                border: '2px solid #dbdbdb',
+                borderRadius: '6px',
+                backgroundColor: 'white',
+                color: '#262626',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                fontFamily: "'Poppins', sans-serif"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#262626';
+                e.currentTarget.style.backgroundColor = '#f9f9f9';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#dbdbdb';
+                e.currentTarget.style.backgroundColor = 'white';
+              }}
+            >
+              🎥 Open Video Camera
+            </button>
+          </div>
+
           <input
+            ref={chooseFilesInputRef}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            onChange={handleChooseFiles}
+            style={{ display: 'none' }}
+          />
+
+          <input
+            ref={cameraInputRef}
             type="file"
             accept="image/*"
             capture="environment"
-            onChange={handleImageChange}
-            style={{
-              display: 'block',
-              marginBottom: '12px',
-              fontSize: '14px'
-            }}
+            onChange={handleCameraCapture}
+            style={{ display: 'none' }}
           />
-          {image && (
+
+          <input
+            ref={videoCameraInputRef}
+            type="file"
+            accept="video/*"
+            capture="environment"
+            onChange={handleVideoCameraCapture}
+            style={{ display: 'none' }}
+          />
+
+          <div style={{ fontSize: '12px', color: '#8e8e8e', marginBottom: '12px' }}>
+            Use Open Camera for photos and Open Video Camera for recording. You can add multiple videos and photos.
+          </div>
+
+          {selectedMedia.length > 0 && (
             <div style={{
-              width: '100%',
-              height: '250px',
-              backgroundColor: '#f0f0f0',
-              borderRadius: '6px',
-              overflow: 'hidden'
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+              gap: '8px'
             }}>
-              <img
-                src={image}
-                alt="Preview"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover'
-                }}
-              />
+              {selectedMedia.map((item, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    position: 'relative',
+                    paddingBottom: '100%',
+                    backgroundColor: '#f0f0f0',
+                    borderRadius: '6px',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {item.kind === 'video' ? (
+                    <video
+                      src={item.preview}
+                      muted
+                      playsInline
+                      controls
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        backgroundColor: '#000'
+                      }}
+                    />
+                  ) : (
+                    <img
+                      src={item.preview}
+                      alt={`Review media ${idx + 1}`}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover'
+                      }}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeMedia(idx)}
+                    style={{
+                      position: 'absolute',
+                      top: '4px',
+                      right: '4px',
+                      backgroundColor: 'rgba(0,0,0,0.6)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '24px',
+                      height: '24px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>

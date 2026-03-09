@@ -37,9 +37,9 @@ const UserChip: React.FC<UserChipProps> = ({
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', ...containerStyle }}>
       <UserAvatar user={user as any} size={avatarSize} />
       <div style={{ display: 'flex', flexDirection: 'column', ...textContainerStyle }}>
-        <span style={{ fontWeight: 600, color: '#262626', ...primaryStyle }}>{primary}</span>
+        <span style={{ fontWeight: 600, color: 'var(--brand-accent)', ...primaryStyle }}>{primary}</span>
         {secondaryText ? (
-          <span style={{ fontSize: '12px', color: '#8e8e8e', ...secondaryStyle }}>{secondaryText}</span>
+          <span style={{ fontSize: '12px', color: 'var(--brand-primary)', ...secondaryStyle }}>{secondaryText}</span>
         ) : null}
       </div>
     </div>

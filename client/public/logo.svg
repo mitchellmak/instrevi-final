@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="40" viewBox="0 0 180 40" role="img" aria-label="Instrevi logo">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1">
+      <stop offset="0" stop-color="#ff6483"/>
+      <stop offset="1" stop-color="#ffb86b"/>
+    </linearGradient>
+  </defs>
+  <!-- simple camera icon -->
+  <g transform="translate(4,4)">
+    <rect x="0" y="0" width="32" height="24" rx="4" fill="url(#g)" />
+    <circle cx="16" cy="12" r="6" fill="#fff" />
+    <rect x="6" y="-4" width="8" height="4" rx="1" fill="#ff8a65" />
+  </g>
+  <!-- brand text -->
+  <text x="48" y="20" font-family="Inter, Arial, sans-serif" font-size="16" fill="#111" font-weight="700">Instrevi</text>
+</svg>

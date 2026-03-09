@@ -1,0 +1,43 @@
+{
+  "name": "instrevi-admin-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Desktop wrapper for the Instrevi admin page",
+  "author": "Instrevi",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:dev": "electron . --url=http://localhost:5000/admin",
+    "start:prod": "electron . --url=https://instrevi-final.onrender.com/admin",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win portable --config.win.artifactName=Instrevi-Admin-${version}-${arch}-portable.${ext}"
+  },
+  "devDependencies": {
+    "electron": "^35.1.4",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.instrevi.admin.desktop",
+    "productName": "Instrevi Admin",
+    "copyright": "Copyright (c) 2026 Instrevi",
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "artifactName": "Instrevi-Admin-${version}-${arch}.${ext}",
+      "signAndEditExecutable": false,
+      "publisherName": [
+        "Instrevi"
+      ],
+      "requestedExecutionLevel": "asInvoker",
+      "target": [
+        "portable"
+      ]
+    }
+  }
+}

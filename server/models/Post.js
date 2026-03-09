@@ -34,6 +34,9 @@ const postSchema = new mongoose.Schema({
   video: {
     type: String
   },
+  videos: [{
+    type: String
+  }],
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -62,7 +65,7 @@ const postSchema = new mongoose.Schema({
   // Review-specific fields
   rating: {
     type: Number,
-    min: 1,
+    min: -5,
     max: 5
   },
   stats: [{

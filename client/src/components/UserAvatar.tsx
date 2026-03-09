@@ -56,8 +56,13 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
         style={{
           width: `${size}px`,
           height: `${size}px`,
+          minWidth: `${size}px`,
+          minHeight: `${size}px`,
           borderRadius: '50%',
           objectFit: 'cover',
+          aspectRatio: '1 / 1',
+          flexShrink: 0,
+          display: 'block',
           ...style,
         }}
       />
@@ -69,11 +74,15 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
       style={{
         width: `${size}px`,
         height: `${size}px`,
+        minWidth: `${size}px`,
+        minHeight: `${size}px`,
         borderRadius: '50%',
         backgroundColor: '#e1306c',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        aspectRatio: '1 / 1',
+        flexShrink: 0,
         color: 'white',
         fontSize: `${fontSize || Math.max(12, Math.floor(size * 0.45))}px`,
         fontWeight: 'bold',

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-
-const API_BASE = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://instrevi-final.onrender.com');
+import { apiFetch } from '../utils/apiFetch';
 
 interface Props {
   onUploadSuccess?: () => void;
@@ -25,7 +24,7 @@ const PostUploader: React.FC<Props> = ({ onUploadSuccess }) => {
       fd.append('image', file);
       fd.append('caption', caption);
 
-      const res = await fetch(`${API_BASE}/api/posts`, {
+      const res = await apiFetch('/api/posts', {
         method: 'POST',
         headers: {
           Authorization: token ? `Bearer ${token}` : ''

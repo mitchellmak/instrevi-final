@@ -82,8 +82,8 @@ const Login: React.FC = () => {
   return (
     <div style={{ 
       display: 'flex', 
-      minHeight: 'calc(100vh - 54px)',
-      backgroundColor: '#fafafa',
+      minHeight: 'calc(100vh - 58px)',
+      backgroundColor: 'var(--brand-bg)',
       fontFamily: "'Poppins', sans-serif",
       alignItems: 'center',
       justifyContent: 'center',
@@ -134,7 +134,7 @@ const Login: React.FC = () => {
               <h2 className="welcome-title" style={{ 
                 fontSize: '26px', 
                 fontWeight: '700', 
-                color: '#262626',
+                color: 'var(--brand-accent)',
                 marginBottom: '8px',
                 letterSpacing: '-0.5px'
               }}>
@@ -142,7 +142,7 @@ const Login: React.FC = () => {
               </h2>
               <p style={{ 
                 fontSize: '14px', 
-                color: '#8e8e8e',
+                color: 'var(--brand-primary)',
                 lineHeight: '1.5'
               }}>
                 Sign in to continue sharing experiences
@@ -169,7 +169,7 @@ const Login: React.FC = () => {
                   display: 'block', 
                   fontSize: '13px', 
                   fontWeight: '600', 
-                  color: '#262626',
+                  color: 'var(--brand-accent)',
                   marginBottom: '6px'
                 }}>
                   Email Address
@@ -184,13 +184,13 @@ const Login: React.FC = () => {
                     width: '100%',
                     padding: '12px 14px',
                     fontSize: '14px',
-                    border: '1.5px solid #e0e0e0',
+                    border: '1.5px solid var(--brand-border)',
                     borderRadius: '8px',
                     transition: 'border-color 0.2s',
-                    backgroundColor: '#fafafa'
+                    backgroundColor: 'var(--brand-bg)'
                   }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = '#262626'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = '#e0e0e0'}
+                  onFocus={(e) => e.currentTarget.style.borderColor = 'var(--brand-accent)'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = 'var(--brand-border)'}
                   required
                 />
               </div>
@@ -200,7 +200,7 @@ const Login: React.FC = () => {
                   display: 'block', 
                   fontSize: '13px', 
                   fontWeight: '600', 
-                  color: '#262626',
+                  color: 'var(--brand-accent)',
                   marginBottom: '6px'
                 }}>
                   Password
@@ -215,13 +215,13 @@ const Login: React.FC = () => {
                     width: '100%',
                     padding: '12px 14px',
                     fontSize: '14px',
-                    border: '1.5px solid #e0e0e0',
+                    border: '1.5px solid var(--brand-border)',
                     borderRadius: '8px',
                     transition: 'border-color 0.2s',
-                    backgroundColor: '#fafafa'
+                    backgroundColor: 'var(--brand-bg)'
                   }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = '#262626'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = '#e0e0e0'}
+                  onFocus={(e) => e.currentTarget.style.borderColor = 'var(--brand-accent)'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = 'var(--brand-border)'}
                   required
                 />
               </div>
@@ -233,9 +233,9 @@ const Login: React.FC = () => {
                   gap: '8px', 
                   marginBottom: '18px',
                   padding: '10px',
-                  backgroundColor: '#fafafa',
+                  backgroundColor: 'var(--brand-bg)',
                   borderRadius: '6px',
-                  border: '1px solid #e0e0e0'
+                  border: '1px solid var(--brand-border)'
                 }}>
                   <input 
                     id="notRobot" 
@@ -244,7 +244,7 @@ const Login: React.FC = () => {
                     onChange={(e) => setNotRobot(e.target.checked)}
                     style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                   />
-                  <label htmlFor="notRobot" style={{ margin: 0, fontSize: '13px', color: '#262626', cursor: 'pointer' }}>
+                  <label htmlFor="notRobot" style={{ margin: 0, fontSize: '13px', color: 'var(--brand-accent)', cursor: 'pointer' }}>
                     I'm not a robot
                   </label>
                 </div>
@@ -275,14 +275,14 @@ const Login: React.FC = () => {
                 <Link 
                   to="/forgot-password" 
                   style={{ 
-                    color: '#6e6e6e', 
+                    color: 'var(--brand-primary)', 
                     textDecoration: 'none',
                     fontSize: '13px',
                     fontWeight: '500',
                     transition: 'color 0.2s'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = '#262626'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = '#6e6e6e'}
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--brand-accent)'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--brand-primary)'}
                 >
                   Forgot password?
                 </Link>
@@ -296,7 +296,7 @@ const Login: React.FC = () => {
                       width: '16px', 
                       height: '16px', 
                       cursor: 'pointer',
-                      accentColor: '#262626'
+                      accentColor: 'var(--brand-pop)'
                     }}
                   />
                   <label htmlFor="rememberMe" style={{ 
@@ -316,13 +316,13 @@ const Login: React.FC = () => {
                 justifyContent: 'center',
                 alignItems: 'center',
                 paddingTop: '16px',
-                borderTop: '1px solid #e0e0e0'
+                borderTop: '1px solid var(--brand-border)'
               }}>
                 <span style={{ color: '#737373', fontSize: '14px', marginRight: '6px' }}>Don't have an account?</span>
                 <Link 
                   to="/register" 
                   style={{ 
-                    color: '#262626', 
+                    color: 'var(--brand-pop)', 
                     textDecoration: 'none',
                     fontSize: '14px',
                     fontWeight: '600',
@@ -349,7 +349,7 @@ const Login: React.FC = () => {
                 style={{
                   width: '100%',
                   padding: '12px',
-                  backgroundColor: '#262626',
+                  backgroundColor: 'var(--brand-pop)',
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: '8px',
@@ -369,15 +369,15 @@ const Login: React.FC = () => {
                 <div style={{
                   marginTop: '16px',
                   padding: '20px',
-                  backgroundColor: '#f5f5f5',
+                  backgroundColor: 'var(--brand-bg)',
                   borderRadius: '8px',
-                  border: '1px solid #e0e0e0'
+                  border: '1px solid var(--brand-border)'
                 }}>
                   <h2 style={{ 
                     fontSize: '14px', 
                     fontWeight: '600', 
                     marginBottom: '12px',
-                    color: '#262626',
+                    color: 'var(--brand-accent)',
                     letterSpacing: '0.5px',
                     textTransform: 'uppercase'
                   }}>
@@ -409,7 +409,7 @@ const Login: React.FC = () => {
           <div className="desktop-about-panel" style={{
             flex: '0 0 380px',
             minWidth: '280px',
-            backgroundColor: '#262626',
+            background: 'linear-gradient(160deg, var(--brand-accent) 0%, var(--brand-primary) 100%)',
             padding: '50px 40px',
             display: 'flex',
             flexDirection: 'column',

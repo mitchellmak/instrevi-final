@@ -108,7 +108,9 @@ router.post('/register', async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        profilePicture: user.profilePicture
+        profilePicture: user.profilePicture,
+        isAdmin: user.isAdmin || false,
+        isBanned: user.isBanned || false
       }
     };
 
@@ -219,6 +221,10 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
+    if (user.isBanned) {
+      return res.status(403).json({ message: 'Your account has been banned' });
+    }
+
     // Block login until email verified (configurable by env)
     if (process.env.BLOCK_UNVERIFIED_LOGIN === 'true' && !user.emailVerified) {
       return res.status(403).json({ message: 'Email not verified' });
@@ -247,7 +253,9 @@ router.post('/login', async (req, res) => {
         lastName: user.lastName || '',
         email: user.email,
         emailVerified: user.emailVerified || false,
-        profilePicture: user.profilePicture
+        profilePicture: user.profilePicture,
+        isAdmin: user.isAdmin || false,
+        isBanned: user.isBanned || false
       }
     });
   } catch (error) {

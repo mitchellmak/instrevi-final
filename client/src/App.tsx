@@ -1,8 +1,7 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
-import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
@@ -25,20 +24,21 @@ function App() {
       <Routes>
         <Route path="/" element={<ProtectedRoute><Feed /></ProtectedRoute>} />
         <Route path="/feed" element={<ProtectedRoute><Feed /></ProtectedRoute>} />
-        <Route path="/home" element={<Home />} />
+        <Route path="/home" element={<ProtectedRoute><Feed /></ProtectedRoute>} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/register" element={<Register />} />
         <Route path="/profile/:userId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
         <Route path="/create/review" element={<ProtectedRoute><CreateReview /></ProtectedRoute>} />
         <Route path="/create/unboxing" element={<ProtectedRoute><CreateUnboxing /></ProtectedRoute>} />
         <Route path="/settings/profile" element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
         <Route path="/settings/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
         <Route path="/settings/privacy" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/settings/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
-        <Route path="/settings/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
+        <Route path="/settings/friends" element={<ProtectedRoute><Navigate to="/friends" replace /></ProtectedRoute>} />
       </Routes>
     </div>
   );

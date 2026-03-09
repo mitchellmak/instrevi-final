@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { AuthResponse, User } from '../types';
-
-const API_BASE = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://instrevi-final.onrender.com');
+import { apiFetch } from '../utils/apiFetch';
 
 interface AuthContextType {
   user: User | null;
@@ -40,7 +39,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }
     const body: any = { email, password };
     if (recaptchaToken) body.recaptchaToken = recaptchaToken;
 
-    const response = await fetch(`${API_BASE}/api/auth/login`, {
+    const response = await apiFetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -62,7 +61,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }
   };
 
   const register = async (username: string, email: string, password: string, firstName?: string, middleName?: string, lastName?: string) => {
-    const response = await fetch(`${API_BASE}/api/auth/register`, {
+    const response = await apiFetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, email, password, firstName, middleName, lastName }),
@@ -88,7 +87,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }
   const updateProfile = async (formData: FormData) => {
     if (!token) throw new Error('Not authenticated');
 
-    const response = await fetch(`${API_BASE}/api/users/profile`, {
+    const response = await apiFetch('/api/users/profile', {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}` },
       body: formData,

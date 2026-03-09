@@ -1,0 +1,61 @@
+{
+  "timestamp": "2026-03-09T13:13:27.311Z",
+  "pass": true,
+  "steps": {
+    "sessionCheckInitial": {
+      "ok": true,
+      "status": 200,
+      "isAdmin": true,
+      "canBootstrap": false
+    },
+    "sessionCheckAfterBootstrap": {
+      "ok": true,
+      "status": 200,
+      "isAdmin": true
+    },
+    "createReport": {
+      "ok": true,
+      "status": 201,
+      "reportId": "69aec77878463079796889ea"
+    },
+    "listReports": {
+      "ok": true,
+      "status": 200,
+      "foundCreatedReport": true
+    },
+    "reportUserDetails": {
+      "ok": true,
+      "status": 200,
+      "hasUser": true,
+      "hasRecentPostsArray": true,
+      "hasReportsArray": true,
+      "hasFirstNameField": true,
+      "hasLastNameField": true
+    },
+    "deleteDisposablePost": {
+      "ok": true,
+      "status": 200,
+      "message": "Post deleted successfully"
+    },
+    "verifyPostDeleted": {
+      "deleted": true
+    }
+  },
+  "context": {
+    "actorId": "6995c50ecf6948ee6dffec46",
+    "actorEmail": "mitchell.mak@outlook.com",
+    "actorUsername": "Mitchy",
+    "actorWasAdminBefore": true,
+    "adminsBefore": 1,
+    "targetUserId": "6995aad80226c5527715f473",
+    "targetUsername": "dev_user_local",
+    "targetEmail": "dev+local@instrevi.test",
+    "disposablePostId": "69aec7771188fb4aa7a335b2"
+  },
+  "cleanup": {
+    "revertedBootstrapAdmin": false,
+    "removedReport": true,
+    "removedDisposablePost": true,
+    "removedPostFromUsers": true
+  }
+}

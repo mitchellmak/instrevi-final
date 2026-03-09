@@ -70,7 +70,7 @@ const Register: React.FC = () => {
         display: 'flex', 
         justifyContent: 'center', 
         alignItems: 'center', 
-        minHeight: 'calc(100vh - 54px)',
+        minHeight: 'calc(100vh - 58px)',
         padding: '20px'
       }}>
         <div style={{ 
@@ -88,7 +88,7 @@ const Register: React.FC = () => {
           {/* About Sign Up Panel - Desktop Only */}
           <div className="desktop-about-panel" style={{ 
             flex: '0 0 380px',
-            backgroundColor: '#262626',
+            background: 'linear-gradient(160deg, var(--brand-accent) 0%, var(--brand-primary) 100%)',
             color: '#fff',
             padding: '50px 40px',
             display: 'flex',
@@ -142,7 +142,7 @@ const Register: React.FC = () => {
                 fontSize: '32px',
                 fontWeight: '600',
                 marginBottom: '8px',
-                color: '#262626'
+                color: 'var(--brand-accent)'
               }}>Create Account</h1>
               <p style={{ 
                 fontSize: '15px',
@@ -160,10 +160,10 @@ const Register: React.FC = () => {
                   display: 'none',
                   width: '100%',
                   padding: '12px',
-                  border: '1px solid #dbdbdb',
+                  border: '1px solid var(--brand-border)',
                   borderRadius: '8px',
                   backgroundColor: '#fff',
-                  color: '#262626',
+                  color: 'var(--brand-accent)',
                   fontSize: '14px',
                   fontWeight: '600',
                   cursor: 'pointer',
@@ -177,7 +177,7 @@ const Register: React.FC = () => {
                 <div className="mobile-about-content" style={{
                   display: 'none',
                   padding: '20px',
-                  backgroundColor: '#f8f8f8',
+                  backgroundColor: 'var(--brand-bg)',
                   borderRadius: '8px',
                   marginBottom: '20px'
                 }}>
@@ -185,7 +185,7 @@ const Register: React.FC = () => {
                     fontSize: '14px',
                     lineHeight: '1.6',
                     marginBottom: '12px',
-                    color: '#262626'
+                    color: 'var(--brand-accent)'
                   }}>
                     Create an account to share your product reviews and unboxing experiences with the community.
                   </p>
@@ -193,14 +193,14 @@ const Register: React.FC = () => {
                     fontSize: '14px',
                     lineHeight: '1.6',
                     marginBottom: '12px',
-                    color: '#262626'
+                    color: 'var(--brand-accent)'
                   }}>
                     Connect with fellow enthusiasts, discover new products, and help others make informed decisions.
                   </p>
                   <p style={{ 
                     fontSize: '14px',
                     lineHeight: '1.6',
-                    color: '#262626'
+                    color: 'var(--brand-accent)'
                   }}>
                     Your voice matters - start sharing today!
                   </p>
@@ -289,7 +289,7 @@ const Register: React.FC = () => {
               <Link 
                 to="/login" 
                 style={{ 
-                  color: '#262626', 
+                  color: 'var(--brand-pop)', 
                   textDecoration: 'none', 
                   fontSize: '14px', 
                   fontWeight: '600',

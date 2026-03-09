@@ -154,7 +154,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
     { path: '/settings/profile', label: 'Edit Profile', icon: 'profile' },
     { path: '/settings/account', label: 'Account', icon: 'account' },
     { path: '/settings/privacy', label: 'Settings & Privacy', icon: 'privacy' },
-    { path: '/settings/friends', label: 'Friends & Followings', icon: 'friends' },
+    { path: '/friends', label: 'Friends & Followings', icon: 'friends' },
     { path: '/settings/help', label: 'Help & Support', icon: 'help' },
   ];
 
@@ -172,12 +172,12 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
           alignItems: 'center',
           gap: '8px',
           background: 'white',
-          border: '1px solid #dbdbdb',
+          border: '1px solid var(--brand-border)',
           borderRadius: '8px',
           padding: '8px 12px',
           fontSize: '13px',
           fontWeight: 600,
-          color: '#262626',
+          color: 'var(--brand-accent)',
           cursor: 'pointer',
           margin: '12px 12px 0'
         }}
@@ -222,9 +222,9 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
                 gap: '15px',
                 padding: '12px 20px',
                 textDecoration: 'none',
-                color: location.pathname === item.path ? '#262626' : '#8e8e8e',
-                backgroundColor: location.pathname === item.path ? '#efefef' : 'transparent',
-                borderLeft: location.pathname === item.path ? '3px solid #262626' : '3px solid transparent',
+                color: location.pathname === item.path ? 'var(--brand-accent)' : 'var(--brand-primary)',
+                backgroundColor: location.pathname === item.path ? '#ecf2f8' : 'transparent',
+                borderLeft: location.pathname === item.path ? '3px solid var(--brand-pop)' : '3px solid transparent',
                 fontWeight: location.pathname === item.path ? 'bold' : 'normal',
                 transition: 'all 0.2s'
               }}
@@ -238,7 +238,7 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
         </nav>
 
         {/* Logout button at bottom */}
-        <div style={{ borderTop: '1px solid #dbdbdb', padding: '10px 0' }}>
+        <div style={{ borderTop: '1px solid var(--brand-border)', padding: '10px 0' }}>
           <button
             onClick={handleLogout}
             className="settings-nav-link"

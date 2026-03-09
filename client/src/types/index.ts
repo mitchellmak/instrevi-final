@@ -28,6 +28,7 @@ export interface Post {
   image: string;
   images?: string[];
   video?: string;
+  videos?: string[];
   user: User;
   likes: User[];
   comments: Comment[];
