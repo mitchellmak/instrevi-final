@@ -14,6 +14,18 @@ const hasSmtpAuth = Boolean(smtpUser && smtpPass);
 const hasPartialSmtpAuth = Boolean(smtpUser || smtpPass) && !hasSmtpAuth;
 const isSmtpConfigured = Boolean(smtpHost);
 
+const maskEmail = (value) => {
+  const email = typeof value === 'string' ? value.trim() : '';
+  if (!email || !email.includes('@')) return '(invalid-email)';
+
+  const [localPart, domainPart] = email.split('@');
+  const maskedLocalPart = localPart.length <= 2
+    ? `${localPart.charAt(0) || '*'}*`
+    : `${localPart.slice(0, 2)}***`;
+
+  return `${maskedLocalPart}@${domainPart}`;
+};
+
 // Nodemailer transporter (uses SMTP_* env vars)
 const transporter = isSmtpConfigured
   ? nodemailer.createTransport({
@@ -35,6 +47,7 @@ if (process.env.NODE_ENV !== 'test') {
   } else if (hasPartialSmtpAuth) {
     console.warn('[auth] SMTP auth is partially configured. Set both SMTP_USER and SMTP_PASS, or neither for host-only SMTP.');
   } else {
+    console.log(`[auth] SMTP config loaded. host=${smtpHost} port=${Number(process.env.SMTP_PORT) || 465} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
     transporter.verify()
       .then(() => {
         console.log('[auth] SMTP connection verified');
@@ -51,9 +64,11 @@ if (process.env.NODE_ENV !== 'test') {
 
 async function sendEmail(to, subject, text, html) {
   if (!transporter) {
-    console.warn('SMTP not configured — skipping sendEmail');
+    console.warn(`[auth] SMTP not configured — skipping sendEmail to ${maskEmail(to)}`);
     return;
   }
+
+  console.log(`[auth] Attempting email send to ${maskEmail(to)} | subject="${subject}"`);
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM || smtpUser || 'no-reply@instrevi.com',
@@ -62,6 +77,8 @@ async function sendEmail(to, subject, text, html) {
     text,
     html
   });
+
+  console.log(`[auth] Email send accepted for ${maskEmail(to)}`);
 }
 
 async function verifyRecaptcha(token) {
@@ -205,7 +222,13 @@ router.post('/resend-verification', async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    if (!user || user.emailVerified) {
+    if (!user) {
+      console.log(`[auth] Resend verification skipped: user not found for ${maskEmail(email)}`);
+      return res.status(200).json({ message: 'If that email exists, verification instructions were sent.' });
+    }
+
+    if (user.emailVerified) {
+      console.log(`[auth] Resend verification skipped: already verified for ${maskEmail(email)}`);
       return res.status(200).json({ message: 'If that email exists, verification instructions were sent.' });
     }
 
@@ -225,7 +248,7 @@ router.post('/resend-verification', async (req, res) => {
         `<p>Click <a href=\"${verifyUrl}\">here</a> to verify your email for Instrevi.</p><p>If you did not sign up, ignore this email.</p>`
       );
     } catch (emailErr) {
-      console.error('Failed to send verification email:', emailErr);
+      console.error(`[auth] Failed to send verification email to ${maskEmail(email)}:`, emailErr?.message || emailErr);
     }
 
     const resp = { message: 'If that email exists, verification instructions were sent.' };
@@ -249,7 +272,10 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     const user = await User.findOne({ email });
-    if (!user) return res.status(200).json({ message: 'If that email exists you will receive reset instructions' });
+    if (!user) {
+      console.log(`[auth] Forgot password skipped: user not found for ${maskEmail(email)}`);
+      return res.status(200).json({ message: 'If that email exists you will receive reset instructions' });
+    }
 
     const resetToken = require('crypto').randomBytes(20).toString('hex');
     user.resetPasswordToken = resetToken;
@@ -263,7 +289,7 @@ router.post('/forgot-password', async (req, res) => {
     try {
       await sendEmail(email, 'Instrevi password reset', `Visit ${resetUrl} to reset your password.`, `<p>Click <a href=\"${resetUrl}\">here</a> to reset your password for Instrevi.</p>`);
     } catch (emailErr) {
-      console.error('Failed to send reset email:', emailErr);
+      console.error(`[auth] Failed to send reset email to ${maskEmail(email)}:`, emailErr?.message || emailErr);
     }
 
     console.log(`Password reset token for ${email}: ${resetToken}`);
