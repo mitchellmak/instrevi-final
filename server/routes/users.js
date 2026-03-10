@@ -63,6 +63,18 @@ const mapNetworkUser = (userDoc, relationshipSets) => {
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const uploadProfilePicture = (req, res, next) => {
+  upload.single('profilePicture')(req, res, (err) => {
+    if (!err) return next();
+
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'File too large. Max upload size is 200MB.' });
+    }
+
+    return res.status(400).json({ message: err.message || 'Profile picture upload failed' });
+  });
+};
+
 // Get current user's friends/followers/following network
 router.get('/network', auth, async (req, res) => {
   try {
@@ -460,7 +472,7 @@ router.delete('/:userId/friend', auth, async (req, res) => {
 });
 
 // Update user profile
-router.put('/profile', auth, upload.single('profilePicture'), async (req, res) => {
+router.put('/profile', auth, uploadProfilePicture, async (req, res) => {
   try {
     const { username, bio, firstName, middleName, lastName, email } = req.body;
     const userId = req.user.userId; // From auth middleware
