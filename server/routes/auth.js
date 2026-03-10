@@ -41,21 +41,22 @@ const resolveFrontendBaseUrl = () => {
 };
 
 const frontendBaseUrl = resolveFrontendBaseUrl();
+const smtpHost = typeof process.env.SMTP_HOST === 'string' ? process.env.SMTP_HOST.trim() : '';
+const smtpUser = typeof process.env.SMTP_USER === 'string' ? process.env.SMTP_USER.trim() : '';
+const smtpPass = typeof process.env.SMTP_PASS === 'string' ? process.env.SMTP_PASS : '';
 const resendApiKey = typeof process.env.RESEND_API_KEY === 'string' ? process.env.RESEND_API_KEY.trim() : '';
 const hasResendConfigured = Boolean(resendApiKey);
 const resendApiUrl = 'https://api.resend.com/emails';
+const useResendAsPrimary = hasResendConfigured && process.env.EMAIL_PROVIDER !== 'smtp';
 const resendFromAddress = (() => {
   const configuredFrom = typeof process.env.RESEND_FROM === 'string' ? process.env.RESEND_FROM.trim() : '';
   if (configuredFrom) {
     return configuredFrom;
   }
 
-  return process.env.SMTP_FROM || smtpUser || 'no-reply@instrevi.com';
+  const smtpFrom = typeof process.env.SMTP_FROM === 'string' ? process.env.SMTP_FROM.trim() : '';
+  return smtpFrom || smtpUser || 'no-reply@instrevi.com';
 })();
-
-const smtpHost = typeof process.env.SMTP_HOST === 'string' ? process.env.SMTP_HOST.trim() : '';
-const smtpUser = typeof process.env.SMTP_USER === 'string' ? process.env.SMTP_USER.trim() : '';
-const smtpPass = typeof process.env.SMTP_PASS === 'string' ? process.env.SMTP_PASS : '';
 const configuredSmtpPort = Number(process.env.SMTP_PORT) || 465;
 const hasSmtpAuth = Boolean(smtpUser && smtpPass);
 const hasPartialSmtpAuth = Boolean(smtpUser || smtpPass) && !hasSmtpAuth;
@@ -144,6 +145,9 @@ if (process.env.NODE_ENV !== 'test') {
     console.warn('[auth] SMTP auth is partially configured. Set both SMTP_USER and SMTP_PASS, or neither for host-only SMTP.');
   } else if (smtpTransports.length === 0) {
     console.warn('[auth] SMTP has no usable transports configured.');
+  } else if (useResendAsPrimary) {
+    console.log(`[auth] SMTP config loaded. hosts=${smtpHosts.join(', ')} ports=${smtpPorts.join(', ')} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
+    console.log('[auth] SMTP verification skipped because Resend is configured as primary transport.');
   } else {
     console.log(`[auth] SMTP config loaded. hosts=${smtpHosts.join(', ')} ports=${smtpPorts.join(', ')} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
     (async () => {
@@ -168,6 +172,7 @@ if (process.env.NODE_ENV !== 'test') {
 
   if (hasResendConfigured) {
     console.log('[auth] Resend API fallback is enabled.');
+    console.log(`[auth] Email transport priority: ${useResendAsPrimary ? 'Resend first, SMTP fallback' : 'SMTP first, Resend fallback'}`);
   } else {
     console.log('[auth] Resend API fallback is disabled.');
   }
@@ -210,6 +215,30 @@ async function sendEmail(to, subject, text, html) {
   const fromAddress = process.env.SMTP_FROM || smtpUser || 'no-reply@instrevi.com';
   let lastError = null;
 
+  const attemptResend = async () => {
+    if (!hasResendConfigured) {
+      return false;
+    }
+
+    try {
+      console.log(`[auth] Attempting email send via Resend API to ${maskEmail(to)} | subject="${subject}"`);
+      await sendViaResendApi(to, subject, text, html);
+      console.log(`[auth] Email send accepted via Resend API for ${maskEmail(to)}`);
+      return true;
+    } catch (resendError) {
+      lastError = resendError;
+      console.error('[auth] Email send attempt failed via Resend API:', resendError?.message || resendError);
+      return false;
+    }
+  };
+
+  if (useResendAsPrimary) {
+    const resendSucceeded = await attemptResend();
+    if (resendSucceeded) {
+      return;
+    }
+  }
+
   for (const entry of smtpTransports) {
     try {
       console.log(`[auth] Attempting email send via ${entry.label} to ${maskEmail(to)} | subject="${subject}"`);
@@ -230,15 +259,10 @@ async function sendEmail(to, subject, text, html) {
     }
   }
 
-  if (hasResendConfigured) {
-    try {
-      console.log(`[auth] Attempting email send via Resend API to ${maskEmail(to)} | subject="${subject}"`);
-      await sendViaResendApi(to, subject, text, html);
-      console.log(`[auth] Email send accepted via Resend API for ${maskEmail(to)}`);
+  if (!useResendAsPrimary) {
+    const resendSucceeded = await attemptResend();
+    if (resendSucceeded) {
       return;
-    } catch (resendError) {
-      lastError = resendError;
-      console.error('[auth] Email send attempt failed via Resend API:', resendError?.message || resendError);
     }
   }
 
