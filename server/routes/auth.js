@@ -10,8 +10,7 @@ const router = express.Router();
 const smtpHost = typeof process.env.SMTP_HOST === 'string' ? process.env.SMTP_HOST.trim() : '';
 const smtpUser = typeof process.env.SMTP_USER === 'string' ? process.env.SMTP_USER.trim() : '';
 const smtpPass = typeof process.env.SMTP_PASS === 'string' ? process.env.SMTP_PASS : '';
-const smtpPort = Number(process.env.SMTP_PORT) || 465;
-const smtpSecure = String(process.env.SMTP_PORT) === '465';
+const configuredSmtpPort = Number(process.env.SMTP_PORT) || 465;
 const hasSmtpAuth = Boolean(smtpUser && smtpPass);
 const hasPartialSmtpAuth = Boolean(smtpUser || smtpPass) && !hasSmtpAuth;
 const isSmtpConfigured = Boolean(smtpHost);
@@ -34,6 +33,18 @@ const smtpHosts = (() => {
   return Array.from(new Set(hosts));
 })();
 
+const smtpPorts = (() => {
+  const ports = [configuredSmtpPort];
+
+  if (configuredSmtpPort === 587) {
+    ports.push(465);
+  } else if (configuredSmtpPort === 465) {
+    ports.push(587);
+  }
+
+  return Array.from(new Set(ports));
+})();
+
 const maskEmail = (value) => {
   const email = typeof value === 'string' ? value.trim() : '';
   if (!email || !email.includes('@')) return '(invalid-email)';
@@ -46,15 +57,18 @@ const maskEmail = (value) => {
   return `${maskedLocalPart}@${domainPart}`;
 };
 
-const createSmtpTransporter = (host) => nodemailer.createTransport({
+const createSmtpTransporter = (host, port) => {
+  const secure = port === 465;
+
+  return nodemailer.createTransport({
   host,
-  port: smtpPort,
-  secure: smtpSecure,
-  requireTLS: !smtpSecure,
+  port,
+  secure,
+  requireTLS: !secure,
   family: 4,
-  connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS) || 15000,
-  greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS) || 15000,
-  socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS) || 30000,
+  connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS) || 8000,
+  greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS) || 8000,
+  socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS) || 15000,
   ...(hasSmtpAuth ? {
     auth: {
       user: smtpUser,
@@ -65,10 +79,16 @@ const createSmtpTransporter = (host) => nodemailer.createTransport({
     minVersion: 'TLSv1.2',
     servername: host
   }
-});
+  });
+};
 
 const smtpTransports = canSendSmtp
-  ? smtpHosts.map((host) => ({ host, transporter: createSmtpTransporter(host) }))
+  ? smtpHosts.flatMap((host) => smtpPorts.map((port) => ({
+    host,
+    port,
+    label: `${host}:${port}`,
+    transporter: createSmtpTransporter(host, port)
+  })))
   : [];
 
 if (process.env.NODE_ENV !== 'test') {
@@ -79,18 +99,18 @@ if (process.env.NODE_ENV !== 'test') {
   } else if (smtpTransports.length === 0) {
     console.warn('[auth] SMTP has no usable transports configured.');
   } else {
-    console.log(`[auth] SMTP config loaded. hosts=${smtpHosts.join(', ')} port=${smtpPort} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
+    console.log(`[auth] SMTP config loaded. hosts=${smtpHosts.join(', ')} ports=${smtpPorts.join(', ')} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
     (async () => {
       let verified = false;
 
       for (const entry of smtpTransports) {
         try {
           await entry.transporter.verify();
-          console.log(`[auth] SMTP connection verified via ${entry.host}`);
+          console.log(`[auth] SMTP connection verified via ${entry.label}`);
           verified = true;
           break;
         } catch (smtpError) {
-          console.error(`[auth] SMTP verification failed via ${entry.host}:`, smtpError?.message || 'Unknown SMTP error');
+          console.error(`[auth] SMTP verification failed via ${entry.label}:`, smtpError?.message || 'Unknown SMTP error');
         }
       }
 
@@ -116,7 +136,7 @@ async function sendEmail(to, subject, text, html) {
 
   for (const entry of smtpTransports) {
     try {
-      console.log(`[auth] Attempting email send via ${entry.host} to ${maskEmail(to)} | subject="${subject}"`);
+      console.log(`[auth] Attempting email send via ${entry.label} to ${maskEmail(to)} | subject="${subject}"`);
 
       await entry.transporter.sendMail({
         from: fromAddress,
@@ -126,11 +146,11 @@ async function sendEmail(to, subject, text, html) {
         html
       });
 
-      console.log(`[auth] Email send accepted via ${entry.host} for ${maskEmail(to)}`);
+      console.log(`[auth] Email send accepted via ${entry.label} for ${maskEmail(to)}`);
       return;
     } catch (smtpError) {
       lastError = smtpError;
-      console.error(`[auth] Email send attempt failed via ${entry.host}:`, smtpError?.message || smtpError);
+      console.error(`[auth] Email send attempt failed via ${entry.label}:`, smtpError?.message || smtpError);
     }
   }
 
