@@ -12,6 +12,33 @@ const shouldSkipAuthRedirect = (path: string) => (
   path.startsWith('/api/auth/verify-email')
 );
 
+const withStoredAuthorization = (normalizedPath: string, init?: RequestInit): RequestInit | undefined => {
+  if (typeof window === 'undefined') {
+    return init;
+  }
+
+  if (!normalizedPath.startsWith('/api/') || shouldSkipAuthRedirect(normalizedPath)) {
+    return init;
+  }
+
+  const storedToken = window.localStorage.getItem('token');
+  if (!storedToken) {
+    return init;
+  }
+
+  const headers = new Headers(init?.headers || undefined);
+  const existingAuthorization = headers.get('Authorization');
+
+  if (!existingAuthorization || !existingAuthorization.trim()) {
+    headers.set('Authorization', `Bearer ${storedToken}`);
+  }
+
+  return {
+    ...(init || {}),
+    headers
+  };
+};
+
 const handleUnauthorizedResponse = (normalizedPath: string) => {
   if (typeof window === 'undefined') {
     return;
@@ -43,6 +70,7 @@ const buildBaseCandidates = () => {
 
 export const apiFetch = async (path: string, init?: RequestInit): Promise<Response> => {
   const normalizedPath = normalizePath(path);
+  const requestInit = withStoredAuthorization(normalizedPath, init);
   const bases = buildBaseCandidates();
 
   let lastError: unknown;
@@ -51,7 +79,7 @@ export const apiFetch = async (path: string, init?: RequestInit): Promise<Respon
     const url = `${base}${normalizedPath}`;
 
     try {
-      const response = await fetch(url, init);
+      const response = await fetch(url, requestInit);
       const contentType = response.headers?.get?.('content-type') || '';
       const isUnexpectedHtml = response.ok && normalizedPath.startsWith('/api/') && contentType.includes('text/html');
 
