@@ -7,24 +7,33 @@ const nodemailer = require('nodemailer');
 
 const router = express.Router();
 
-// Nodemailer transporter (uses SMTP_* env vars)
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT) || 465,
-  secure: String(process.env.SMTP_PORT) === '465',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  }
-});
+const smtpHost = typeof process.env.SMTP_HOST === 'string' ? process.env.SMTP_HOST.trim() : '';
+const smtpUser = typeof process.env.SMTP_USER === 'string' ? process.env.SMTP_USER.trim() : '';
+const smtpPass = typeof process.env.SMTP_PASS === 'string' ? process.env.SMTP_PASS : '';
+const hasSmtpAuth = Boolean(smtpUser && smtpPass);
+const hasPartialSmtpAuth = Boolean(smtpUser || smtpPass) && !hasSmtpAuth;
+const isSmtpConfigured = Boolean(smtpHost);
 
-const smtpRequiredVars = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
-const missingSmtpVars = smtpRequiredVars.filter((key) => !process.env[key]);
-const isSmtpConfigured = missingSmtpVars.length === 0;
+// Nodemailer transporter (uses SMTP_* env vars)
+const transporter = isSmtpConfigured
+  ? nodemailer.createTransport({
+    host: smtpHost,
+    port: Number(process.env.SMTP_PORT) || 465,
+    secure: String(process.env.SMTP_PORT) === '465',
+    ...(hasSmtpAuth ? {
+      auth: {
+        user: smtpUser,
+        pass: smtpPass
+      }
+    } : {})
+  })
+  : null;
 
 if (process.env.NODE_ENV !== 'test') {
   if (!isSmtpConfigured) {
-    console.warn(`[auth] SMTP disabled. Missing env vars: ${missingSmtpVars.join(', ')}`);
+    console.warn('[auth] SMTP disabled. Missing env vars: SMTP_HOST');
+  } else if (hasPartialSmtpAuth) {
+    console.warn('[auth] SMTP auth is partially configured. Set both SMTP_USER and SMTP_PASS, or neither for host-only SMTP.');
   } else {
     transporter.verify()
       .then(() => {
@@ -41,13 +50,13 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 async function sendEmail(to, subject, text, html) {
-  if (!isSmtpConfigured) {
+  if (!transporter) {
     console.warn('SMTP not configured — skipping sendEmail');
     return;
   }
 
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    from: process.env.SMTP_FROM || smtpUser || 'no-reply@instrevi.com',
     to,
     subject,
     text,
