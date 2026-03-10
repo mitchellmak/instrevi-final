@@ -10,9 +10,29 @@ const router = express.Router();
 const smtpHost = typeof process.env.SMTP_HOST === 'string' ? process.env.SMTP_HOST.trim() : '';
 const smtpUser = typeof process.env.SMTP_USER === 'string' ? process.env.SMTP_USER.trim() : '';
 const smtpPass = typeof process.env.SMTP_PASS === 'string' ? process.env.SMTP_PASS : '';
+const smtpPort = Number(process.env.SMTP_PORT) || 465;
+const smtpSecure = String(process.env.SMTP_PORT) === '465';
 const hasSmtpAuth = Boolean(smtpUser && smtpPass);
 const hasPartialSmtpAuth = Boolean(smtpUser || smtpPass) && !hasSmtpAuth;
 const isSmtpConfigured = Boolean(smtpHost);
+const canSendSmtp = isSmtpConfigured && !hasPartialSmtpAuth;
+
+const smtpHosts = (() => {
+  if (!smtpHost) {
+    return [];
+  }
+
+  const hosts = [smtpHost];
+  const lowerHost = smtpHost.toLowerCase();
+
+  if (lowerHost === 'smtp.office365.com') {
+    hosts.push('smtp-mail.outlook.com');
+  } else if (lowerHost === 'smtp-mail.outlook.com') {
+    hosts.push('smtp.office365.com');
+  }
+
+  return Array.from(new Set(hosts));
+})();
 
 const maskEmail = (value) => {
   const email = typeof value === 'string' ? value.trim() : '';
@@ -26,35 +46,58 @@ const maskEmail = (value) => {
   return `${maskedLocalPart}@${domainPart}`;
 };
 
-// Nodemailer transporter (uses SMTP_* env vars)
-const transporter = isSmtpConfigured
-  ? nodemailer.createTransport({
-    host: smtpHost,
-    port: Number(process.env.SMTP_PORT) || 465,
-    secure: String(process.env.SMTP_PORT) === '465',
-    ...(hasSmtpAuth ? {
-      auth: {
-        user: smtpUser,
-        pass: smtpPass
-      }
-    } : {})
-  })
-  : null;
+const createSmtpTransporter = (host) => nodemailer.createTransport({
+  host,
+  port: smtpPort,
+  secure: smtpSecure,
+  requireTLS: !smtpSecure,
+  family: 4,
+  connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS) || 15000,
+  greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS) || 15000,
+  socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS) || 30000,
+  ...(hasSmtpAuth ? {
+    auth: {
+      user: smtpUser,
+      pass: smtpPass
+    }
+  } : {}),
+  tls: {
+    minVersion: 'TLSv1.2',
+    servername: host
+  }
+});
+
+const smtpTransports = canSendSmtp
+  ? smtpHosts.map((host) => ({ host, transporter: createSmtpTransporter(host) }))
+  : [];
 
 if (process.env.NODE_ENV !== 'test') {
   if (!isSmtpConfigured) {
     console.warn('[auth] SMTP disabled. Missing env vars: SMTP_HOST');
   } else if (hasPartialSmtpAuth) {
     console.warn('[auth] SMTP auth is partially configured. Set both SMTP_USER and SMTP_PASS, or neither for host-only SMTP.');
+  } else if (smtpTransports.length === 0) {
+    console.warn('[auth] SMTP has no usable transports configured.');
   } else {
-    console.log(`[auth] SMTP config loaded. host=${smtpHost} port=${Number(process.env.SMTP_PORT) || 465} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
-    transporter.verify()
-      .then(() => {
-        console.log('[auth] SMTP connection verified');
-      })
-      .catch((smtpError) => {
-        console.error('[auth] SMTP verification failed:', smtpError?.message || 'Unknown SMTP error');
-      });
+    console.log(`[auth] SMTP config loaded. hosts=${smtpHosts.join(', ')} port=${smtpPort} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
+    (async () => {
+      let verified = false;
+
+      for (const entry of smtpTransports) {
+        try {
+          await entry.transporter.verify();
+          console.log(`[auth] SMTP connection verified via ${entry.host}`);
+          verified = true;
+          break;
+        } catch (smtpError) {
+          console.error(`[auth] SMTP verification failed via ${entry.host}:`, smtpError?.message || 'Unknown SMTP error');
+        }
+      }
+
+      if (!verified) {
+        console.error('[auth] SMTP verification failed for all configured hosts');
+      }
+    })();
   }
 
   if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
@@ -63,22 +106,35 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 async function sendEmail(to, subject, text, html) {
-  if (!transporter) {
+  if (!smtpTransports.length) {
     console.warn(`[auth] SMTP not configured — skipping sendEmail to ${maskEmail(to)}`);
     return;
   }
 
-  console.log(`[auth] Attempting email send to ${maskEmail(to)} | subject="${subject}"`);
+  const fromAddress = process.env.SMTP_FROM || smtpUser || 'no-reply@instrevi.com';
+  let lastError = null;
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || smtpUser || 'no-reply@instrevi.com',
-    to,
-    subject,
-    text,
-    html
-  });
+  for (const entry of smtpTransports) {
+    try {
+      console.log(`[auth] Attempting email send via ${entry.host} to ${maskEmail(to)} | subject="${subject}"`);
 
-  console.log(`[auth] Email send accepted for ${maskEmail(to)}`);
+      await entry.transporter.sendMail({
+        from: fromAddress,
+        to,
+        subject,
+        text,
+        html
+      });
+
+      console.log(`[auth] Email send accepted via ${entry.host} for ${maskEmail(to)}`);
+      return;
+    } catch (smtpError) {
+      lastError = smtpError;
+      console.error(`[auth] Email send attempt failed via ${entry.host}:`, smtpError?.message || smtpError);
+    }
+  }
+
+  throw lastError || new Error('All SMTP send attempts failed');
 }
 
 async function verifyRecaptcha(token) {
