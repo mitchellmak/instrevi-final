@@ -2,9 +2,11 @@ const express = require('express');
 const User = require('../models/User');
 const Post = require('../models/Post');
 const auth = require('../middleware/auth');
+const requireNotBanned = require('../middleware/requireNotBanned');
 const upload = require('../middleware/upload');
 const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
+const { createNotification } = require('../utils/notifications');
 
 const router = express.Router();
 
@@ -201,7 +203,7 @@ router.get('/:userId', async (req, res) => {
 });
 
 // Follow/unfollow user
-router.post('/:userId/follow', auth, async (req, res) => {
+router.post('/:userId/follow', auth, requireNotBanned, async (req, res) => {
   try {
     const userToFollow = await User.findById(req.params.userId);
     const currentUser = await User.findById(req.user.userId); // From auth middleware
@@ -231,6 +233,21 @@ router.post('/:userId/follow', auth, async (req, res) => {
     await currentUser.save();
     await userToFollow.save();
 
+    if (!isFollowing) {
+      try {
+        await createNotification({
+          recipientId: userToFollow._id,
+          actorId: currentUser._id,
+          type: 'follow',
+          dedupeQuery: {
+            actor: currentUser._id
+          }
+        });
+      } catch (notificationError) {
+        console.error('Follow notification error:', notificationError);
+      }
+    }
+
     res.json({
       following: !isFollowing,
       followersCount: userToFollow.followers.length
@@ -241,7 +258,7 @@ router.post('/:userId/follow', auth, async (req, res) => {
 });
 
 // Send a friend request
-router.post('/:userId/friend-request', auth, async (req, res) => {
+router.post('/:userId/friend-request', auth, requireNotBanned, async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.userId);
     const targetUser = await User.findById(req.params.userId);
@@ -296,6 +313,19 @@ router.post('/:userId/friend-request', auth, async (req, res) => {
       await currentUser.save();
       await targetUser.save();
 
+      try {
+        await createNotification({
+          recipientId: targetUser._id,
+          actorId: currentUser._id,
+          type: 'friend_request_accepted',
+          dedupeQuery: {
+            actor: currentUser._id
+          }
+        });
+      } catch (notificationError) {
+        console.error('Friend acceptance notification error:', notificationError);
+      }
+
       return res.json({
         status: 'accepted',
         message: 'Friend request accepted'
@@ -308,6 +338,19 @@ router.post('/:userId/friend-request', auth, async (req, res) => {
     await currentUser.save();
     await targetUser.save();
 
+    try {
+      await createNotification({
+        recipientId: targetUser._id,
+        actorId: currentUser._id,
+        type: 'friend_request',
+        dedupeQuery: {
+          actor: currentUser._id
+        }
+      });
+    } catch (notificationError) {
+      console.error('Friend request notification error:', notificationError);
+    }
+
     res.json({
       status: 'sent',
       message: 'Friend request sent'
@@ -318,7 +361,7 @@ router.post('/:userId/friend-request', auth, async (req, res) => {
 });
 
 // Cancel an outgoing friend request
-router.delete('/:userId/friend-request', auth, async (req, res) => {
+router.delete('/:userId/friend-request', auth, requireNotBanned, async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.userId);
     const targetUser = await User.findById(req.params.userId);
@@ -343,7 +386,7 @@ router.delete('/:userId/friend-request', auth, async (req, res) => {
 });
 
 // Accept an incoming friend request
-router.post('/:userId/friend-request/accept', auth, async (req, res) => {
+router.post('/:userId/friend-request/accept', auth, requireNotBanned, async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.userId);
     const requestUser = await User.findById(req.params.userId);
@@ -382,6 +425,19 @@ router.post('/:userId/friend-request/accept', auth, async (req, res) => {
     await currentUser.save();
     await requestUser.save();
 
+    try {
+      await createNotification({
+        recipientId: requestUser._id,
+        actorId: currentUser._id,
+        type: 'friend_request_accepted',
+        dedupeQuery: {
+          actor: currentUser._id
+        }
+      });
+    } catch (notificationError) {
+      console.error('Friend request accepted notification error:', notificationError);
+    }
+
     res.json({
       status: 'accepted',
       message: 'Friend request accepted'
@@ -392,7 +448,7 @@ router.post('/:userId/friend-request/accept', auth, async (req, res) => {
 });
 
 // Decline an incoming friend request
-router.post('/:userId/friend-request/decline', auth, async (req, res) => {
+router.post('/:userId/friend-request/decline', auth, requireNotBanned, async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.userId);
     const requestUser = await User.findById(req.params.userId);
@@ -417,7 +473,7 @@ router.post('/:userId/friend-request/decline', auth, async (req, res) => {
 });
 
 // Remove a follower from current user's followers list
-router.delete('/:userId/follower', auth, async (req, res) => {
+router.delete('/:userId/follower', auth, requireNotBanned, async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.userId);
     const followerUser = await User.findById(req.params.userId);
@@ -446,7 +502,7 @@ router.delete('/:userId/follower', auth, async (req, res) => {
 });
 
 // Remove friend relationship (both directions)
-router.delete('/:userId/friend', auth, async (req, res) => {
+router.delete('/:userId/friend', auth, requireNotBanned, async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.userId);
     const friendUser = await User.findById(req.params.userId);

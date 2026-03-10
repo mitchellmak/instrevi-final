@@ -18,8 +18,30 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+const smtpRequiredVars = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
+const missingSmtpVars = smtpRequiredVars.filter((key) => !process.env[key]);
+const isSmtpConfigured = missingSmtpVars.length === 0;
+
+if (process.env.NODE_ENV !== 'test') {
+  if (!isSmtpConfigured) {
+    console.warn(`[auth] SMTP disabled. Missing env vars: ${missingSmtpVars.join(', ')}`);
+  } else {
+    transporter.verify()
+      .then(() => {
+        console.log('[auth] SMTP connection verified');
+      })
+      .catch((smtpError) => {
+        console.error('[auth] SMTP verification failed:', smtpError?.message || 'Unknown SMTP error');
+      });
+  }
+
+  if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
+    console.warn('[auth] FRONTEND_URL is not set in production; email links may point to localhost.');
+  }
+}
+
 async function sendEmail(to, subject, text, html) {
-  if (!process.env.SMTP_HOST) {
+  if (!isSmtpConfigured) {
     console.warn('SMTP not configured — skipping sendEmail');
     return;
   }
@@ -54,7 +76,21 @@ async function verifyRecaptcha(token) {
 // Register (now supports name fields and email verification token)
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password, firstName, middleName, lastName } = req.body;
+    const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    const firstName = typeof req.body?.firstName === 'string' ? req.body.firstName.trim() : '';
+    const middleName = typeof req.body?.middleName === 'string' ? req.body.middleName.trim() : '';
+    const lastName = typeof req.body?.lastName === 'string' ? req.body.lastName.trim() : '';
+    const termsAccepted = req.body?.termsAccepted === true;
+
+    if (!username || !email || !password || !firstName || !middleName || !lastName) {
+      return res.status(400).json({ message: 'All signup fields are required' });
+    }
+
+    if (!termsAccepted) {
+      return res.status(400).json({ message: 'You must accept the Terms & Conditions' });
+    }
 
     // Check if user exists
     const existingUser = await User.findOne({
@@ -75,9 +111,9 @@ router.post('/register', async (req, res) => {
     // Create user
     const user = new User({
       username,
-      firstName: firstName || '',
-      middleName: middleName || '',
-      lastName: lastName || '',
+      firstName,
+      middleName,
+      lastName,
       email,
       password: hashedPassword,
       emailVerified: false,
@@ -94,10 +130,11 @@ router.post('/register', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // Send verification email (and return token in non-production for dev)
+    const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const verifyUrl = `${frontend}/verify-email?token=${verificationToken}`;
+
+    // Send verification email (and return token/url in non-production for dev)
     try {
-      const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const verifyUrl = `${frontend}/verify-email?token=${verificationToken}`;
       await sendEmail(user.email, 'Verify your Instrevi account', `Visit ${verifyUrl} to verify your email.`, `<p>Click <a href=\"${verifyUrl}\">here</a> to verify your email for Instrevi.</p><p>If you did not sign up, ignore this email.</p>`);
     } catch (emailErr) {
       console.error('Failed to send verification email:', emailErr);
@@ -115,7 +152,10 @@ router.post('/register', async (req, res) => {
       }
     };
 
-    if (process.env.NODE_ENV !== 'production') responsePayload.verificationToken = verificationToken;
+    if (process.env.NODE_ENV !== 'production') {
+      responsePayload.verificationToken = verificationToken;
+      responsePayload.verifyUrl = verifyUrl;
+    }
 
     res.status(201).json(responsePayload);
   } catch (error) {
@@ -146,10 +186,59 @@ router.post('/verify-email', async (req, res) => {
   }
 });
 
+router.post('/resend-verification', async (req, res) => {
+  try {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user || user.emailVerified) {
+      return res.status(200).json({ message: 'If that email exists, verification instructions were sent.' });
+    }
+
+    const verificationToken = require('crypto').randomBytes(20).toString('hex');
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000;
+    await user.save();
+
+    const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const verifyUrl = `${frontend}/verify-email?token=${verificationToken}`;
+
+    try {
+      await sendEmail(
+        email,
+        'Verify your Instrevi account',
+        `Visit ${verifyUrl} to verify your email.`,
+        `<p>Click <a href=\"${verifyUrl}\">here</a> to verify your email for Instrevi.</p><p>If you did not sign up, ignore this email.</p>`
+      );
+    } catch (emailErr) {
+      console.error('Failed to send verification email:', emailErr);
+    }
+
+    const resp = { message: 'If that email exists, verification instructions were sent.' };
+    if (process.env.NODE_ENV !== 'production') {
+      resp.verificationToken = verificationToken;
+      resp.verifyUrl = verifyUrl;
+    }
+
+    return res.json(resp);
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Forgot password - create reset token
 router.post('/forgot-password', async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
     const user = await User.findOne({ email });
     if (!user) return res.status(200).json({ message: 'If that email exists you will receive reset instructions' });
 
@@ -159,17 +248,21 @@ router.post('/forgot-password', async (req, res) => {
     await user.save();
 
     // Send reset email and (in dev) return token in response for convenience
+    const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetUrl = `${frontend}/reset-password?token=${resetToken}`;
+
     try {
-      const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const resetUrl = `${frontend}/reset-password?token=${resetToken}`;
       await sendEmail(email, 'Instrevi password reset', `Visit ${resetUrl} to reset your password.`, `<p>Click <a href=\"${resetUrl}\">here</a> to reset your password for Instrevi.</p>`);
     } catch (emailErr) {
       console.error('Failed to send reset email:', emailErr);
     }
 
     console.log(`Password reset token for ${email}: ${resetToken}`);
-    const resp = { message: 'Password reset token created' };
-    if (process.env.NODE_ENV !== 'production') resp.resetToken = resetToken;
+    const resp = { message: 'If that email exists you will receive reset instructions' };
+    if (process.env.NODE_ENV !== 'production') {
+      resp.resetToken = resetToken;
+      resp.resetUrl = resetUrl;
+    }
     res.json(resp);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -222,13 +315,9 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    if (user.isBanned) {
-      return res.status(403).json({ message: 'Your account has been banned' });
-    }
-
     // Block login until email verified (configurable by env)
     if (process.env.BLOCK_UNVERIFIED_LOGIN === 'true' && !user.emailVerified) {
-      return res.status(403).json({ message: 'Email not verified' });
+      return res.status(403).json({ message: 'Email not verified', code: 'EMAIL_NOT_VERIFIED' });
     }
 
     // Check password

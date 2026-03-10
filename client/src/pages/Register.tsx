@@ -9,6 +9,7 @@ const Register: React.FC = () => {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState('');
   const [showAboutSignup, setShowAboutSignup] = useState(false);
   const { register, user } = useAuth();
@@ -24,10 +25,36 @@ const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const trimmedUsername = username.trim();
+    const trimmedFirstName = firstName.trim();
+    const trimmedMiddleName = middleName.trim();
+    const trimmedLastName = lastName.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!termsAccepted) {
+      setError('You must accept the Terms & Conditions before signing up.');
+      return;
+    }
+
     try {
-      const data = await register(username, email, password, firstName, middleName, lastName);
-      // redirect to verification page and pass verificationToken in state for dev convenience
-      navigate('/verify-email', { state: { verificationToken: (data && data.verificationToken) || null, email } });
+      const data = await register(
+        trimmedUsername,
+        normalizedEmail,
+        password,
+        trimmedFirstName,
+        trimmedMiddleName,
+        trimmedLastName,
+        termsAccepted
+      );
+
+      navigate('/verify-email/pending', {
+        state: {
+          email: normalizedEmail,
+          verificationToken: (data && data.verificationToken) || null,
+          verifyUrl: (data && data.verifyUrl) || null
+        }
+      });
     } catch (err) {
       console.error(err);
       setError((err instanceof Error ? err.message : 'Registration failed'));
@@ -35,7 +62,15 @@ const Register: React.FC = () => {
   };
 
   return (
-    <div className="login-container">
+    <div style={{
+      display: 'flex',
+      minHeight: 'calc(100vh - 58px)',
+      backgroundColor: 'var(--brand-bg)',
+      fontFamily: "'Poppins', sans-serif",
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '10px'
+    }}>
       <style>{`
         @media (max-width: 768px) {
           .register-container {
@@ -56,7 +91,7 @@ const Register: React.FC = () => {
             margin-bottom: 20px !important;
           }
           .register-container .welcome-title {
-            font-size: 28px !important;
+            font-size: 26px !important;
           }
           .register-container .mobile-about-toggle {
             display: block !important;
@@ -96,32 +131,33 @@ const Register: React.FC = () => {
             justifyContent: 'center'
           }}>
             <h2 style={{ 
-              fontSize: '28px',
+              fontSize: '26px',
               marginBottom: '20px',
-              fontWeight: '600'
+              fontWeight: '700',
+              letterSpacing: '-0.5px'
             }}>Join Instrevi</h2>
             <p style={{ 
-              fontSize: '15px',
-              lineHeight: '1.7',
+              fontSize: '13px',
+              lineHeight: '1.6',
               marginBottom: '16px',
               color: '#e0e0e0'
             }}>
               Create an account to share your product reviews and unboxing experiences with the community.
             </p>
             <p style={{ 
-              fontSize: '15px',
-              lineHeight: '1.7',
+              fontSize: '13px',
+              lineHeight: '1.6',
               marginBottom: '16px',
               color: '#e0e0e0'
             }}>
               Connect with fellow enthusiasts, discover new products, and help others make informed purchase decisions.
             </p>
             <p style={{ 
-              fontSize: '15px',
-              lineHeight: '1.7',
+              fontSize: '13px',
+              lineHeight: '1.6',
               color: '#e0e0e0'
             }}>
-              Your voice matters - start sharing today!
+              Your voice matters - start reviewing today!
             </p>
           </div>
 
@@ -139,15 +175,17 @@ const Register: React.FC = () => {
               textAlign: 'center'
             }}>
               <h1 className="welcome-title" style={{ 
-                fontSize: '32px',
-                fontWeight: '600',
+                fontSize: '26px',
+                fontWeight: '700',
                 marginBottom: '8px',
-                color: 'var(--brand-accent)'
+                color: 'var(--brand-accent)',
+                letterSpacing: '-0.5px'
               }}>Create Account</h1>
               <p style={{ 
-                fontSize: '15px',
-                color: '#737373'
-              }}>Start posting today</p>
+                fontSize: '14px',
+                color: 'var(--brand-primary)',
+                lineHeight: '1.5'
+              }}>Start reviewing today</p>
             </div>
 
             {/* Mobile About Sign Up - Collapsible */}
@@ -182,7 +220,7 @@ const Register: React.FC = () => {
                   marginBottom: '20px'
                 }}>
                   <p style={{ 
-                    fontSize: '14px',
+                    fontSize: '13px',
                     lineHeight: '1.6',
                     marginBottom: '12px',
                     color: 'var(--brand-accent)'
@@ -190,7 +228,7 @@ const Register: React.FC = () => {
                     Create an account to share your product reviews and unboxing experiences with the community.
                   </p>
                   <p style={{ 
-                    fontSize: '14px',
+                    fontSize: '13px',
                     lineHeight: '1.6',
                     marginBottom: '12px',
                     color: 'var(--brand-accent)'
@@ -198,11 +236,11 @@ const Register: React.FC = () => {
                     Connect with fellow enthusiasts, discover new products, and help others make informed decisions.
                   </p>
                   <p style={{ 
-                    fontSize: '14px',
+                    fontSize: '13px',
                     lineHeight: '1.6',
                     color: 'var(--brand-accent)'
                   }}>
-                    Your voice matters - start sharing today!
+                    Your voice matters - start reviewing today!
                   </p>
                 </div>
               )}
@@ -234,14 +272,16 @@ const Register: React.FC = () => {
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 className="form-input"
+                required
               />
 
               <input
                 type="text"
-                placeholder="Middle name (optional)"
+                placeholder="Middle name"
                 value={middleName}
                 onChange={(e) => setMiddleName(e.target.value)}
                 className="form-input"
+                required
               />
 
               <input
@@ -250,6 +290,7 @@ const Register: React.FC = () => {
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 className="form-input"
+                required
               />
               
               <input
@@ -269,6 +310,27 @@ const Register: React.FC = () => {
                 className="form-input"
                 required
               />
+
+              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <input
+                  id="registerTermsAccepted"
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  style={{ marginTop: '3px', width: '16px', height: '16px', cursor: 'pointer' }}
+                  required
+                />
+                <label
+                  htmlFor="registerTermsAccepted"
+                  style={{ margin: 0, fontSize: '13px', color: '#4a4a4a', lineHeight: 1.5, cursor: 'pointer' }}
+                >
+                  I have read and agree to the{' '}
+                  <Link to="/terms" style={{ color: 'var(--brand-pop)', textDecoration: 'none', fontWeight: 600 }}>
+                    Terms & Conditions
+                  </Link>
+                  .
+                </label>
+              </div>
               
               <button 
                 type="submit" 
@@ -301,6 +363,26 @@ const Register: React.FC = () => {
                 Log in
               </Link>
             </div>
+
+            <p style={{
+              marginTop: '12px',
+              textAlign: 'center',
+              fontSize: '12px',
+              color: '#737373'
+            }}>
+              By signing up, you agree to our{' '}
+              <Link
+                to="/terms"
+                style={{
+                  color: 'var(--brand-pop)',
+                  textDecoration: 'none',
+                  fontWeight: 600
+                }}
+              >
+                Terms & Conditions
+              </Link>
+              .
+            </p>
           </div>
         </div>
       </div>

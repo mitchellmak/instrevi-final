@@ -8,6 +8,7 @@ export interface User {
   emailVerified?: boolean;
   profilePicture?: string;
   bio?: string;
+  isBanned?: boolean;
   followers: User[];
   following: User[];
   followersCount: number;
@@ -24,6 +25,12 @@ export interface Post {
   postType: 'review' | 'unboxing' | 'general';
   title?: string;
   category?: string;
+  subjectName?: string;
+  subjectKey?: string;
+  shopName?: string;
+  businessLocation?: string;
+  visitDate?: string;
+  visitTime?: string;
   caption: string;
   image: string;
   images?: string[];
@@ -51,4 +58,45 @@ export interface Comment {
 export interface AuthResponse {
   token: string;
   user: User;
+}
+
+export type NotificationType =
+  | 'friend_request'
+  | 'friend_request_accepted'
+  | 'follow'
+  | 'like'
+  | 'comment'
+  | 'mention'
+  | 'tag'
+  | 'notification'
+  | 'general';
+
+export interface NotificationActor {
+  _id?: string;
+  id?: string;
+  username?: string;
+  profilePicture?: string;
+}
+
+export interface NotificationPost {
+  _id?: string;
+  id?: string;
+  title?: string;
+  image?: string;
+  postType?: 'review' | 'unboxing' | 'general';
+}
+
+export interface NotificationItem {
+  _id: string;
+  recipient: string;
+  actor?: NotificationActor | null;
+  type: NotificationType;
+  post?: NotificationPost | string | null;
+  commentId?: string;
+  message?: string;
+  metadata?: Record<string, unknown>;
+  isRead: boolean;
+  readAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }

@@ -2,22 +2,74 @@ import React from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import UserAvatar from './UserAvatar';
-import { API_BASE, API_FALLBACK_BASE } from '../utils/apiBase';
+import { apiFetch } from '../utils/apiFetch';
 
 const Navbar: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const isLoginPage = location.pathname === '/login';
   const isLoginPath = location.pathname === '/login';
   const isRegisterPath = location.pathname === '/register';
+  const isPublicTermsPath = location.pathname === '/terms';
+  const hideGuestAuthButtons = isLoginPath || isRegisterPath || isPublicTermsPath;
   const isFeedPath = location.pathname === '/' || location.pathname === '/feed' || location.pathname === '/home';
-  const isAdmin = Boolean((user as any)?.isAdmin);
-  const backendBase = API_FALLBACK_BASE || API_BASE || window.location.origin;
-  const adminUrl = `${backendBase.replace(/\/$/, '')}/admin`;
+  const isBanned = Boolean(user?.isBanned);
   const feedSearchQuery = searchParams.get('q') || '';
   const showFavsOnly = searchParams.get('favs') === '1';
+  const [unreadNotifications, setUnreadNotifications] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!user) {
+      setUnreadNotifications(0);
+      return;
+    }
+
+    let isActive = true;
+    let pollingTimer: number | null = null;
+
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await apiFetch('/api/notifications/unread-count');
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = await response.json();
+        const nextCount = typeof payload.unreadCount === 'number' ? payload.unreadCount : 0;
+
+        if (isActive) {
+          setUnreadNotifications(Math.max(0, nextCount));
+        }
+      } catch (error) {
+        console.error('Notification unread count error:', error);
+      }
+    };
+
+    const handleRefresh = () => {
+      fetchUnreadCount();
+    };
+
+    fetchUnreadCount();
+    pollingTimer = window.setInterval(fetchUnreadCount, 30000);
+    window.addEventListener('instrevi:notifications-refresh', handleRefresh);
+
+    return () => {
+      isActive = false;
+
+      if (pollingTimer !== null) {
+        window.clearInterval(pollingTimer);
+      }
+
+      window.removeEventListener('instrevi:notifications-refresh', handleRefresh);
+    };
+  }, [user]);
+
+  const blockBannedCreateNavigation = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!isBanned) return;
+    event.preventDefault();
+  };
 
   const updateFeedFilters = (next: { query?: string; favs?: boolean }) => {
     const params = new URLSearchParams(searchParams);
@@ -54,14 +106,22 @@ const Navbar: React.FC = () => {
       top: 0,
       zIndex: 1000
     }}>
-      <div className="navbar-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: isLoginPage ? 'center' : 'space-between', width: '100%', maxWidth: '975px', margin: '0 auto' }}>
+      <div className="navbar-inner navbar-content-wrap" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', margin: '0 auto' }}>
         <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', color: 'black' }}>
-          <span style={{ fontSize: '28px', fontWeight: 'bold', letterSpacing: '-1px', color: 'var(--brand-accent)' }}>Instrevi</span>
+          <span className="brand-logo-text" style={{ fontSize: '28px', fontWeight: 'bold', letterSpacing: '-1px' }}>Instrevi</span>
         </Link>
 
-        {user && isFeedPath && !isLoginPage && (
+        {user && isFeedPath && (
           <div className="navbar-feed-tools" aria-label="Feed actions">
-            <Link to="/create/review" className="navbar-feed-icon-btn" aria-label="Create review">
+            <Link
+              to="/create/review"
+              className={`navbar-feed-icon-btn ${isBanned ? 'navbar-feed-icon-btn--disabled' : ''}`}
+              aria-label="Create review"
+              aria-disabled={isBanned}
+              tabIndex={isBanned ? -1 : undefined}
+              onClick={blockBannedCreateNavigation}
+              title={isBanned ? 'Banned users cannot create posts' : undefined}
+            >
               <svg className="navbar-feed-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z" />
                 <polyline points="14 2 14 8 20 8" />
@@ -70,7 +130,15 @@ const Navbar: React.FC = () => {
               </svg>
             </Link>
 
-            <Link to="/create/unboxing" className="navbar-feed-icon-btn" aria-label="Create unboxing">
+            <Link
+              to="/create/unboxing"
+              className={`navbar-feed-icon-btn ${isBanned ? 'navbar-feed-icon-btn--disabled' : ''}`}
+              aria-label="Create unboxing"
+              aria-disabled={isBanned}
+              tabIndex={isBanned ? -1 : undefined}
+              onClick={blockBannedCreateNavigation}
+              title={isBanned ? 'Banned users cannot create posts' : undefined}
+            >
               <svg className="navbar-feed-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
                 <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
@@ -90,6 +158,15 @@ const Navbar: React.FC = () => {
               </svg>
             </button>
 
+            <Link to="/friends" className="navbar-feed-icon-btn" aria-label="Friends and followers">
+              <svg className="navbar-feed-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="8.5" cy="7" r="4" />
+                <path d="M20 8v6" />
+                <path d="M23 11h-6" />
+              </svg>
+            </Link>
+
             <div className="navbar-feed-search-wrap">
               <input
                 type="text"
@@ -104,83 +181,58 @@ const Navbar: React.FC = () => {
           </div>
         )}
 
-        {!isLoginPage && (
-          <div className="navbar-right-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto' }}>
-            {!user && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Link
-                  to="/login"
-                  style={{
-                    textDecoration: 'none',
-                    color: isLoginPath ? 'white' : 'var(--brand-accent)',
-                    backgroundColor: isLoginPath ? 'var(--brand-accent)' : 'transparent',
-                    border: '1px solid',
-                    borderColor: isLoginPath ? 'var(--brand-accent)' : 'var(--brand-border)',
-                    borderRadius: '6px',
-                    padding: '6px 10px',
-                    fontSize: '13px',
-                    fontWeight: 600
-                  }}
-                >
-                  Login
-                </Link>
-                <Link
-                  to="/register"
-                  style={{
-                    textDecoration: 'none',
-                    color: isRegisterPath ? 'white' : 'var(--brand-accent)',
-                    backgroundColor: isRegisterPath ? 'var(--brand-accent)' : 'transparent',
-                    border: '1px solid',
-                    borderColor: isRegisterPath ? 'var(--brand-accent)' : 'var(--brand-border)',
-                    borderRadius: '6px',
-                    padding: '6px 10px',
-                    fontSize: '13px',
-                    fontWeight: 600
-                  }}
-                >
-                  Register
-                </Link>
-              </div>
-            )}
-
-            {user && isAdmin && (
-              <a
-                href={adminUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+        <div className="navbar-right-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto' }}>
+          {!user && !hideGuestAuthButtons && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Link
+                to="/login"
                 style={{
                   textDecoration: 'none',
-                  color: 'var(--brand-accent)',
-                  border: '1px solid var(--brand-border)',
+                  color: isLoginPath ? 'white' : 'var(--brand-accent)',
+                  backgroundColor: isLoginPath ? 'var(--brand-accent)' : 'transparent',
+                  border: '1px solid',
+                  borderColor: isLoginPath ? 'var(--brand-accent)' : 'var(--brand-border)',
                   borderRadius: '6px',
                   padding: '6px 10px',
                   fontSize: '13px',
                   fontWeight: 600
                 }}
-                aria-label="Open admin panel"
               >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <span>Admin Panel</span>
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{ opacity: 0.62 }}
-                    aria-hidden="true"
-                  >
-                    <path d="M7 17L17 7" />
-                    <path d="M9 7h8v8" />
-                  </svg>
-                </span>
-              </a>
-            )}
+                Login
+              </Link>
+              <Link
+                to="/register"
+                style={{
+                  textDecoration: 'none',
+                  color: isRegisterPath ? 'white' : 'var(--brand-accent)',
+                  backgroundColor: isRegisterPath ? 'var(--brand-accent)' : 'transparent',
+                  border: '1px solid',
+                  borderColor: isRegisterPath ? 'var(--brand-accent)' : 'var(--brand-border)',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  fontSize: '13px',
+                  fontWeight: 600
+                }}
+              >
+                Register
+              </Link>
+            </div>
+          )}
 
-            {user && (
+          {user && (
+            <>
+              <Link to="/notifications" className="navbar-feed-icon-btn navbar-notification-btn" aria-label="Notifications">
+                <svg className="navbar-feed-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                {unreadNotifications > 0 && (
+                  <span className="navbar-notification-badge" aria-label={`${unreadNotifications} unread notifications`}>
+                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                  </span>
+                )}
+              </Link>
+
               <div
                 onClick={() => navigate('/settings/profile')}
                 style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px' }}
@@ -188,9 +240,9 @@ const Navbar: React.FC = () => {
               >
                 <UserAvatar user={user} size={36} />
               </div>
-            )}
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </nav>
   );

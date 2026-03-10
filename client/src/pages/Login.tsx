@@ -45,6 +45,7 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const normalizedEmail = email.trim().toLowerCase();
 
     try {
       if (RECAPTCHA_SITE_KEY) {
@@ -58,16 +59,16 @@ const Login: React.FC = () => {
           });
         });
 
-        await login(email, password, token);
+        await login(normalizedEmail, password, token);
       } else {
         // fallback to checkbox when no site key
         if (!notRobot) return setError('Please confirm you are not a robot');
-        await login(email, password);
+        await login(normalizedEmail, password);
       }
 
       // Save or clear remembered email
       if (rememberMe) {
-        localStorage.setItem('rememberedEmail', email);
+        localStorage.setItem('rememberedEmail', normalizedEmail);
       } else {
         localStorage.removeItem('rememberedEmail');
       }
@@ -75,7 +76,12 @@ const Login: React.FC = () => {
       navigate('/');
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || 'Login failed — check credentials');
+      const message = err?.message || 'Login failed — check credentials';
+      if (/email not verified/i.test(message)) {
+        navigate('/verify-email/pending', { state: { email: normalizedEmail } });
+        return;
+      }
+      setError(message);
     }
   }; 
 
@@ -334,6 +340,26 @@ const Login: React.FC = () => {
                   Sign up
                 </Link>
               </div>
+
+              <p style={{
+                marginTop: '12px',
+                textAlign: 'center',
+                fontSize: '12px',
+                color: '#737373'
+              }}>
+                By signing in, you agree to our{' '}
+                <Link
+                  to="/terms"
+                  style={{
+                    color: 'var(--brand-pop)',
+                    textDecoration: 'none',
+                    fontWeight: 600
+                  }}
+                >
+                  Terms & Conditions
+                </Link>
+                .
+              </p>
             </form>
 
             {/* Mobile About Us Toggle */}
@@ -390,7 +416,10 @@ const Login: React.FC = () => {
                     marginBottom: '12px',
                     color: '#4a4a4a'
                   }}>
-                    Instrevi is built around one simple idea: the best insights come from real people. Our platform gives users the spotlight—letting them unbox products, explore services, and share their genuine experiences with the world.
+                    Instrevi puts the power back where it belongs — in the hands of real people.
+                    <br />
+                    <br />
+                    We’re built on transparency, not theatrics. Our community highlights what works, exposes what doesn’t, and brings clarity to a world crowded with marketing noise.
                   </p>
                   
                   <p style={{ 
@@ -398,7 +427,7 @@ const Login: React.FC = () => {
                     lineHeight: '1.6',
                     color: '#4a4a4a'
                   }}>
-                    We celebrate curiosity, honesty, and the thrill of trying something new. Whether it's the latest gadget, a local business, or a service worth talking about, our users bring it to life through their own lens.
+                    When a product or service delivers, our users elevate it. When it falls short, they speak up — candidly, constructively, and without hesitation. Instrevi champions honesty because honest voices push brands to do better and empower everyone to choose smarter. No filters. No fluff. Just the truth, delivered with integrity!
                   </p>
                 </div>
               )}
@@ -444,7 +473,10 @@ const Login: React.FC = () => {
                 marginBottom: '14px',
                 color: '#d4d4d4'
               }}>
-                Instrevi is built around one simple idea: the best insights come from real people. Our platform gives users the spotlight—letting them unbox products, explore services, and share their genuine experiences with the world.
+                Instrevi puts the power back where it belongs — in the hands of real people.
+                <br />
+                <br />
+                We’re built on transparency, not theatrics. Our community highlights what works, exposes what doesn’t, and brings clarity to a world crowded with marketing noise.
               </p>
               
               <p style={{ 
@@ -452,7 +484,7 @@ const Login: React.FC = () => {
                 lineHeight: '1.6',
                 color: '#d4d4d4'
               }}>
-                We celebrate curiosity, honesty, and the thrill of trying something new. Whether it's the latest gadget, a local business, or a service worth talking about, our users bring it to life through their own lens.
+                When a product or service delivers, our users elevate it. When it falls short, they speak up — candidly, constructively, and without hesitation. Instrevi champions honesty because honest voices push brands to do better and empower everyone to choose smarter. No filters. No fluff. Just the truth, delivered with integrity!
               </p>
           </div>
         </div>

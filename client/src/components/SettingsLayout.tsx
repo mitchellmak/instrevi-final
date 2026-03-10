@@ -108,11 +108,35 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
         );
+      case 'settings':
+        return (
+          <svg {...iconCommonProps}>
+            <line x1="4" y1="21" x2="4" y2="14" />
+            <line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" />
+            <line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" />
+            <line x1="9" y1="8" x2="15" y2="8" />
+            <line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+        );
       case 'privacy':
         return (
           <svg {...iconCommonProps}>
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        );
+      case 'terms':
+        return (
+          <svg {...iconCommonProps}>
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
           </svg>
         );
       case 'friends':
@@ -151,10 +175,12 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
   };
 
   const menuItems = [
-    { path: '/settings/profile', label: 'Edit Profile', icon: 'profile' },
+    { path: '/settings/profile', label: 'Profile', icon: 'profile' },
     { path: '/settings/account', label: 'Account', icon: 'account' },
-    { path: '/settings/privacy', label: 'Settings & Privacy', icon: 'privacy' },
-    { path: '/friends', label: 'Friends & Followings', icon: 'friends' },
+    { path: '/friends', label: 'Friends & Following', icon: 'friends' },
+    { path: '/settings/settings', label: 'Settings', icon: 'settings' },
+    { path: '/settings/privacy', label: 'Privacy', icon: 'privacy' },
+    { path: '/settings/terms', label: 'Terms & Conditions', icon: 'terms' },
     { path: '/settings/help', label: 'Help & Support', icon: 'help' },
   ];
 

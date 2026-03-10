@@ -6,7 +6,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string, recaptchaToken?: string) => Promise<void>;
-  register: (username: string, email: string, password: string, firstName?: string, middleName?: string, lastName?: string) => Promise<void>;
+  register: (username: string, email: string, password: string, firstName: string, middleName: string, lastName: string, termsAccepted: boolean) => Promise<any>;
   updateProfile: (formData: FormData) => Promise<void>;
   logout: () => void;
   loading: boolean;
@@ -150,11 +150,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }
     localStorage.setItem('user', JSON.stringify(payload.user));
   };
 
-  const register = async (username: string, email: string, password: string, firstName?: string, middleName?: string, lastName?: string) => {
+  const register = async (username: string, email: string, password: string, firstName: string, middleName: string, lastName: string, termsAccepted: boolean) => {
     const response = await apiFetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, email, password, firstName, middleName, lastName }),
+      body: JSON.stringify({ username, email, password, firstName, middleName, lastName, termsAccepted }),
     });
 
     const data = await parseResponseData(response);
@@ -163,12 +163,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }
       throw new Error(data.message || 'Registration failed');
     }
 
-    // server returns token + verificationToken (dev) + user
-    setUser(data.user);
-    setToken(data.token);
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    // optionally surface verificationToken in UI (pages will handle it)
+    // server may return verification token/url in non-production; pages handle next step
     return data;
   };
 

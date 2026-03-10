@@ -10,8 +10,9 @@ interface SelectedMediaItem {
 }
 
 const CreateReview: React.FC = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
+  const isBanned = Boolean(user?.isBanned);
 
   const [reviewCategory, setReviewCategory] = useState('Products');
   const [includeShopName, setIncludeShopName] = useState(false);
@@ -26,9 +27,11 @@ const CreateReview: React.FC = () => {
   const [selectedMedia, setSelectedMedia] = useState<SelectedMediaItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const CAPTION_MAX_LENGTH = 2200;
   const chooseFilesInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
   const videoCameraInputRef = React.useRef<HTMLInputElement>(null);
+  const captionInputRef = React.useRef<HTMLTextAreaElement>(null);
   const selectedMediaRef = React.useRef<SelectedMediaItem[]>([]);
 
   // For Products category ratings (-5 to +5)
@@ -55,7 +58,7 @@ const CreateReview: React.FC = () => {
   const [foodValueRating, setFoodValueRating] = useState(0);
   const [foodOverallRating, setFoodOverallRating] = useState(0);
 
-  // For Places category ratings (-5 to +5)
+  // For Establishment category ratings (-5 to +5)
   const [cleanlinessRating, setCleanlinessRating] = useState(0);
   const [maintenanceRating, setMaintenanceRating] = useState(0);
   const [locationRating, setLocationRating] = useState(0);
@@ -75,11 +78,70 @@ const CreateReview: React.FC = () => {
     } else if (reviewCategory === 'Food') {
       const average = Math.round((tasteRating + textureRating + freshnessRating + presentationRating + foodValueRating) / 5);
       setFoodOverallRating(average);
-    } else if (reviewCategory === 'Places') {
+    } else if (reviewCategory === 'Establishment') {
       const average = Math.round((cleanlinessRating + maintenanceRating + locationRating + amenitiesRating + valueForMoneyRating) / 5);
       setPlacesOverallRating(average);
     }
   }, [reviewCategory, qualityRating, durabilityRating, performanceRating, designRating, valueRating, courtesyRating, professionalismRating, responsivenessRating, serviceValueRating, problemResolutionRating, tasteRating, textureRating, freshnessRating, presentationRating, foodValueRating, cleanlinessRating, maintenanceRating, locationRating, amenitiesRating, valueForMoneyRating]);
+
+  const applyCaptionFormatting = (format: 'bold' | 'italic' | 'underline' | 'bullet') => {
+    const input = captionInputRef.current;
+    if (!input) return;
+
+    const selectionStart = input.selectionStart ?? 0;
+    const selectionEnd = input.selectionEnd ?? 0;
+    const selectedText = caption.slice(selectionStart, selectionEnd);
+
+    let replacement = selectedText;
+    let nextSelectionStart = selectionStart;
+    let nextSelectionEnd = selectionEnd;
+
+    if (format === 'bullet') {
+      if (selectedText) {
+        replacement = selectedText
+          .split('\n')
+          .map((line) => {
+            if (!line.trim()) return line;
+            if (/^\s*[-*]\s+/.test(line)) return line;
+            return `- ${line}`;
+          })
+          .join('\n');
+        nextSelectionEnd = selectionStart + replacement.length;
+      } else {
+        replacement = (selectionStart > 0 && caption[selectionStart - 1] !== '\n') ? '\n- ' : '- ';
+        nextSelectionStart = selectionStart + replacement.length;
+        nextSelectionEnd = nextSelectionStart;
+      }
+    } else {
+      const markerMap = {
+        bold: '**',
+        italic: '*',
+        underline: '__'
+      } as const;
+
+      const placeholderMap = {
+        bold: 'bold text',
+        italic: 'italic text',
+        underline: 'underlined text'
+      } as const;
+
+      const marker = markerMap[format];
+      const baseText = selectedText || placeholderMap[format];
+      replacement = `${marker}${baseText}${marker}`;
+      nextSelectionStart = selectionStart + marker.length;
+      nextSelectionEnd = nextSelectionStart + baseText.length;
+    }
+
+    const nextCaption = `${caption.slice(0, selectionStart)}${replacement}${caption.slice(selectionEnd)}`;
+    if (nextCaption.length > CAPTION_MAX_LENGTH) return;
+
+    setCaption(nextCaption);
+
+    requestAnimationFrame(() => {
+      input.focus();
+      input.setSelectionRange(nextSelectionStart, nextSelectionEnd);
+    });
+  };
 
   const appendSelectedFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -111,6 +173,30 @@ const CreateReview: React.FC = () => {
     e.target.value = '';
   };
 
+  const dismissTextKeyboardForRangeInteraction = (target: EventTarget | null) => {
+    if (!(target instanceof HTMLInputElement) || target.type !== 'range') {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement
+    ) {
+      if (activeElement !== target) {
+        activeElement.blur();
+      }
+    }
+  };
+
+  const handleFormPointerDownCapture = (e: React.PointerEvent<HTMLFormElement>) => {
+    dismissTextKeyboardForRangeInteraction(e.target);
+  };
+
+  const handleFormTouchStartCapture = (e: React.TouchEvent<HTMLFormElement>) => {
+    dismissTextKeyboardForRangeInteraction(e.target);
+  };
+
   const removeMedia = (index: number) => {
     setSelectedMedia((prev) => {
       const target = prev[index];
@@ -138,13 +224,19 @@ const CreateReview: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isBanned) {
+      setError('Your account is banned from creating posts.');
+      return;
+    }
+
     if (!title.trim() || !caption.trim() || selectedMedia.length === 0) {
       setError('Please fill in all required fields and upload at least one photo or video');
       return;
     }
 
-    if (reviewCategory === 'Places' && (!shopName.trim() || !businessLocation.trim())) {
-      setError('Place name and location are required');
+    if (reviewCategory === 'Establishment' && (!shopName.trim() || !businessLocation.trim())) {
+      setError('Establishment name and location are required');
       return;
     }
 
@@ -156,7 +248,9 @@ const CreateReview: React.FC = () => {
       const formData = new FormData();
       formData.append('postType', 'review');
       formData.append('reviewCategory', reviewCategory);
+      formData.append('category', reviewCategory);
       formData.append('title', title);
+      formData.append('subjectName', includeShopName && shopName.trim() ? shopName.trim() : title.trim());
       formData.append('caption', caption);
       formData.append('tags', tags);
       formData.append('friendsOrAnyone', friendsOrAnyone);
@@ -214,7 +308,7 @@ const CreateReview: React.FC = () => {
         ];
         formData.append('stats', JSON.stringify(stats));
         formData.append('rating', foodOverallRating.toString());
-      } else if (reviewCategory === 'Places') {
+      } else if (reviewCategory === 'Establishment') {
         const stats = [
           { label: 'Cleanliness', value: cleanlinessRating },
           { label: 'Maintenance', value: maintenanceRating },
@@ -291,7 +385,27 @@ const CreateReview: React.FC = () => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit}>
+      {isBanned && (
+        <div
+          style={{
+            marginBottom: '16px',
+            padding: '10px 12px',
+            borderRadius: '8px',
+            border: '1px solid var(--brand-border)',
+            background: '#ffffff',
+            color: 'var(--brand-primary)',
+            fontSize: '13px'
+          }}
+        >
+          Your account is banned from posting. You can still use other profile and settings pages.
+        </div>
+      )}
+
+      <form
+        onSubmit={handleSubmit}
+        onPointerDownCapture={handleFormPointerDownCapture}
+        onTouchStartCapture={handleFormTouchStartCapture}
+      >
         {/* Review Category Buttons */}
         <div style={{ marginBottom: '30px' }}>
           <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '16px', textAlign: 'center', color: '#262626' }}>
@@ -407,7 +521,7 @@ const CreateReview: React.FC = () => {
                 fontWeight: reviewCategory === 'Service' ? '600' : '400',
                 fontFamily: "'Poppins', sans-serif"
               }}>
-                Service
+                Services
               </span>
             </div>
 
@@ -468,23 +582,23 @@ const CreateReview: React.FC = () => {
               </span>
             </div>
 
-            {/* Places Button */}
+            {/* Establishment Button */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
               <button
                 type="button"
-                onClick={() => setReviewCategory('Places')}
+                onClick={() => setReviewCategory('Establishment')}
                 style={{
                   width: '70px',
                   height: '70px',
                   backgroundColor: 'white',
-                  border: reviewCategory === 'Places' ? '2px solid #262626' : '1px solid #dbdbdb',
+                  border: reviewCategory === 'Establishment' ? '2px solid #262626' : '1px solid #dbdbdb',
                   borderRadius: '6px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   transition: 'all 0.2s',
-                  boxShadow: reviewCategory === 'Places' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.05)',
+                  boxShadow: reviewCategory === 'Establishment' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.05)',
                   flexShrink: 0
                 }}
                 onMouseEnter={(e) => {
@@ -492,7 +606,7 @@ const CreateReview: React.FC = () => {
                   e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)';
                 }}
                 onMouseLeave={(e) => {
-                  if (reviewCategory !== 'Places') {
+                  if (reviewCategory !== 'Establishment') {
                     e.currentTarget.style.borderColor = '#dbdbdb';
                     e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
                   }
@@ -515,16 +629,16 @@ const CreateReview: React.FC = () => {
               <span style={{ 
                 fontSize: '11px', 
                 color: '#262626',
-                fontWeight: reviewCategory === 'Places' ? '600' : '400',
+                fontWeight: reviewCategory === 'Establishment' ? '600' : '400',
                 fontFamily: "'Poppins', sans-serif"
               }}>
-                Places
+                Businesses
               </span>
             </div>
           </div>
         </div>
 
-        {/* Include Shop Name Checkbox (for Products, Service, Food) */}
+        {/* Include Business Name Checkbox (for Products, Service, Food) */}
         {(reviewCategory === 'Products' || reviewCategory === 'Service' || reviewCategory === 'Food') && (
           <div style={{ marginBottom: '20px' }}>
             <label style={{ 
@@ -546,76 +660,76 @@ const CreateReview: React.FC = () => {
                   accentColor: '#262626'
                 }}
               />
-              Include Shop name?
+              Include Business name?
             </label>
           </div>
         )}
 
-        {/* Mandatory Place Name (for Places) */}
-        {reviewCategory === 'Places' && (
+        {/* Mandatory Establishment Name (for Establishment) */}
+        {reviewCategory === 'Establishment' && (
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>
-              Place Name *
+              Establishment Name *
             </label>
             <input
               type="text"
               value={shopName}
               onChange={(e) => setShopName(e.target.value)}
-              placeholder="Enter place name..."
+              placeholder="Enter establishment name..."
               style={{
                 width: '100%',
                 padding: '12px',
-                border: shopName.trim() === '' && reviewCategory === 'Places' ? '2px solid #c62828' : '1px solid #dbdbdb',
+                border: shopName.trim() === '' && reviewCategory === 'Establishment' ? '2px solid #c62828' : '1px solid #dbdbdb',
                 borderRadius: '6px',
                 fontSize: '14px',
                 boxSizing: 'border-box',
                 fontFamily: "'Poppins', sans-serif"
               }}
             />
-            {shopName.trim() === '' && reviewCategory === 'Places' && (
+            {shopName.trim() === '' && reviewCategory === 'Establishment' && (
               <div style={{ fontSize: '12px', color: '#c62828', marginTop: '4px' }}>
-                Place name is required
+                Establishment name is required
               </div>
             )}
           </div>
         )}
 
-        {/* Place Location (for Places) */}
-        {reviewCategory === 'Places' && (
+        {/* Establishment Location (for Establishment) */}
+        {reviewCategory === 'Establishment' && (
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-              Place Location *
+              Establishment Location *
             </label>
             <input
               type="text"
               value={businessLocation}
               onChange={(e) => setBusinessLocation(e.target.value)}
-              placeholder="Enter place location..."
+              placeholder="Enter establishment location..."
               style={{
                 width: '100%',
                 padding: '12px',
-                border: businessLocation.trim() === '' && reviewCategory === 'Places' ? '2px solid #c62828' : '1px solid #dbdbdb',
+                border: businessLocation.trim() === '' && reviewCategory === 'Establishment' ? '2px solid #c62828' : '1px solid #dbdbdb',
                 borderRadius: '6px',
                 fontSize: '14px',
                 boxSizing: 'border-box',
                 fontFamily: "'Poppins', sans-serif"
               }}
             />
-            {businessLocation.trim() === '' && reviewCategory === 'Places' && (
+            {businessLocation.trim() === '' && reviewCategory === 'Establishment' && (
               <div style={{ fontSize: '12px', color: '#c62828', marginTop: '4px' }}>
-                Place location is required
+                Establishment location is required
               </div>
             )}
           </div>
         )}
 
-        {/* Shop Details (shown when Include Shop Name is checked) */}
+        {/* Business Details (shown when Include Business Name is checked) */}
         {includeShopName && (reviewCategory === 'Products' || reviewCategory === 'Service' || reviewCategory === 'Food') && (
           <>
-            {/* Shop Name */}
+            {/* Business Name */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-                Shop Name
+                Business Name
               </label>
               <input
                 type="text"
@@ -633,7 +747,7 @@ const CreateReview: React.FC = () => {
                 }}
               />
               <div style={{ fontSize: '12px', color: '#8e8e8e', marginTop: '4px' }}>
-                Note: Google Places API integration coming soon
+                Note: Google Maps API integration coming soon
               </div>
             </div>
 
@@ -706,14 +820,14 @@ const CreateReview: React.FC = () => {
         {/* Review Title */}
         <div style={{ marginBottom: '20px' }}>
           <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-            Review Title *
+            Review Title * (limit 30 characters)
           </label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder={reviewCategory === 'Service' ? 'e.g., Quality service, friendly staff, etc...' : reviewCategory === 'Food' ? 'e.g., Awesome burgers at Orchard' : reviewCategory === 'Places' ? 'e.g., Amazing amenities, Great Location' : 'e.g., Amazing product, highly recommended!'}
-            maxLength={200}
+            placeholder={reviewCategory === 'Service' ? 'e.g., Quality service, friendly staff, etc...' : reviewCategory === 'Food' ? 'e.g., Awesome burgers at Orchard' : reviewCategory === 'Establishment' ? 'e.g., Amazing amenities, Great Location' : 'e.g., Amazing product, highly recommended!'}
+            maxLength={30}
             style={{
               width: '100%',
               padding: '12px',
@@ -746,7 +860,11 @@ const CreateReview: React.FC = () => {
                 fontWeight: '500',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                fontFamily: "'Poppins', sans-serif"
+                fontFamily: "'Poppins', sans-serif",
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = '#262626';
@@ -757,7 +875,21 @@ const CreateReview: React.FC = () => {
                 e.currentTarget.style.backgroundColor = 'white';
               }}
             >
-              📁 Choose Files
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              Files
             </button>
 
             <button
@@ -774,7 +906,11 @@ const CreateReview: React.FC = () => {
                 fontWeight: '500',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                fontFamily: "'Poppins', sans-serif"
+                fontFamily: "'Poppins', sans-serif",
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = '#262626';
@@ -785,7 +921,21 @@ const CreateReview: React.FC = () => {
                 e.currentTarget.style.backgroundColor = 'white';
               }}
             >
-              📷 Open Camera
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+              Camera
             </button>
 
             <button
@@ -802,7 +952,11 @@ const CreateReview: React.FC = () => {
                 fontWeight: '500',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                fontFamily: "'Poppins', sans-serif"
+                fontFamily: "'Poppins', sans-serif",
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = '#262626';
@@ -813,7 +967,21 @@ const CreateReview: React.FC = () => {
                 e.currentTarget.style.backgroundColor = 'white';
               }}
             >
-              🎥 Open Video Camera
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polygon points="23 7 16 12 23 17 23 7" />
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+              </svg>
+              Video
             </button>
           </div>
 
@@ -845,7 +1013,7 @@ const CreateReview: React.FC = () => {
           />
 
           <div style={{ fontSize: '12px', color: '#8e8e8e', marginBottom: '12px' }}>
-            Use Open Camera for photos and Open Video Camera for recording. You can add multiple videos and photos.
+            Use Camera for photos and Video for recording. You can add multiple videos and photos.
           </div>
 
           {selectedMedia.length > 0 && (
@@ -932,7 +1100,7 @@ const CreateReview: React.FC = () => {
             type="text"
             value={tags}
             onChange={(e) => setTags(e.target.value)}
-            placeholder={reviewCategory === 'Service' ? 'e.g., friendly, quality, efficient (separated by commas)' : reviewCategory === 'Food' ? 'e.g., Burgers, Sushi, Fish&Chips (separated by commas)' : reviewCategory === 'Places' ? 'e.g., Hotels, Motels, Theme Parks (separated by commas)' : 'e.g., electronics, camera, sony (separated by commas)'}
+            placeholder={reviewCategory === 'Service' ? 'e.g., friendly, quality, efficient (separated by commas)' : reviewCategory === 'Food' ? 'e.g., Burgers, Sushi, Fish&Chips (separated by commas)' : reviewCategory === 'Establishment' ? 'e.g., Hotels, Motels, Theme Parks (separated by commas)' : 'e.g., electronics, camera, sony (separated by commas)'}
             style={{
               width: '100%',
               padding: '12px',
@@ -978,11 +1146,82 @@ const CreateReview: React.FC = () => {
           <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
             Your Review *
           </label>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+            <button
+              type="button"
+              onClick={() => applyCaptionFormatting('bold')}
+              style={{
+                border: '1px solid #dbdbdb',
+                borderRadius: '6px',
+                backgroundColor: '#fff',
+                padding: '6px 10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+              aria-label="Format bold"
+            >
+              Bold
+            </button>
+            <button
+              type="button"
+              onClick={() => applyCaptionFormatting('italic')}
+              style={{
+                border: '1px solid #dbdbdb',
+                borderRadius: '6px',
+                backgroundColor: '#fff',
+                padding: '6px 10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                fontStyle: 'italic',
+                cursor: 'pointer'
+              }}
+              aria-label="Format italic"
+            >
+              Italic
+            </button>
+            <button
+              type="button"
+              onClick={() => applyCaptionFormatting('underline')}
+              style={{
+                border: '1px solid #dbdbdb',
+                borderRadius: '6px',
+                backgroundColor: '#fff',
+                padding: '6px 10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                textDecoration: 'underline',
+                cursor: 'pointer'
+              }}
+              aria-label="Format underline"
+            >
+              Underline
+            </button>
+            <button
+              type="button"
+              onClick={() => applyCaptionFormatting('bullet')}
+              style={{
+                border: '1px solid #dbdbdb',
+                borderRadius: '6px',
+                backgroundColor: '#fff',
+                padding: '6px 10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+              aria-label="Format bullet list"
+            >
+              Bullets
+            </button>
+          </div>
+
           <textarea
+            ref={captionInputRef}
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
             placeholder="Write your detailed review..."
-            maxLength={2200}
+            maxLength={CAPTION_MAX_LENGTH}
             style={{
               width: '100%',
               minHeight: '150px',
@@ -996,7 +1235,7 @@ const CreateReview: React.FC = () => {
             }}
           />
           <div style={{ fontSize: '12px', color: '#8e8e8e', marginTop: '4px' }}>
-            {caption.length}/2200
+            {caption.length}/{CAPTION_MAX_LENGTH} · Use Bold/Italic/Underline/Bullets buttons for rich text.
           </div>
         </div>
 
@@ -1532,8 +1771,8 @@ const CreateReview: React.FC = () => {
           </div>
         )}
 
-        {/* Rate These Aspects (for Places) */}
-        {reviewCategory === 'Places' && (
+        {/* Rate These Aspects (for Establishment) */}
+        {reviewCategory === 'Establishment' && (
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '16px' }}>Rate These Aspects (-5 to +5)</label>
             {/* Cleanliness */}
@@ -1627,7 +1866,7 @@ const CreateReview: React.FC = () => {
                     accentColor: '#262626'
                   }}
                 />
-                Also rate the service at this place?
+                Also rate the service at this establishment?
               </label>
             </div>
 
@@ -1712,8 +1951,9 @@ const CreateReview: React.FC = () => {
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || isBanned}
           className="btn-dark btn-large"
+          title={isBanned ? 'Banned users cannot create posts' : undefined}
         >
           {loading ? 'Instant-ifying...' : 'Instrevi It!'}
         </button>

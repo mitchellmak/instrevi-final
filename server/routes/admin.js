@@ -3,6 +3,11 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const Post = require('../models/Post');
 const Report = require('../models/Report');
+const LegalDocument = require('../models/LegalDocument');
+const {
+  DEFAULT_TERMS_SLUG,
+  defaultLastUpdatedLabel
+} = require('../constants/defaultTermsContent');
 const auth = require('../middleware/auth');
 const requireAdmin = require('../middleware/requireAdmin');
 
@@ -31,6 +36,39 @@ const cleanUser = (user) => {
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   };
+};
+
+const mapTermsDocument = (termsDoc) => {
+  const updatedBy = termsDoc?.updatedBy && typeof termsDoc.updatedBy === 'object'
+    ? {
+      id: termsDoc.updatedBy._id || termsDoc.updatedBy.id || '',
+      username: termsDoc.updatedBy.username || '',
+      email: termsDoc.updatedBy.email || ''
+    }
+    : null;
+
+  return {
+    id: termsDoc?._id || '',
+    title: termsDoc?.title || 'Terms & Conditions',
+    lastUpdatedLabel: termsDoc?.lastUpdatedLabel || defaultLastUpdatedLabel,
+    publicContent: termsDoc?.publicContent || '',
+    settingsContent: termsDoc?.settingsContent || '',
+    updatedAt: termsDoc?.updatedAt || null,
+    updatedBy
+  };
+};
+
+const ensureTermsDocument = async () => {
+  let termsDoc = await LegalDocument.findOne({ slug: DEFAULT_TERMS_SLUG })
+    .populate('updatedBy', 'username email');
+
+  if (!termsDoc) {
+    const created = await LegalDocument.create({ slug: DEFAULT_TERMS_SLUG });
+    termsDoc = await LegalDocument.findById(created._id)
+      .populate('updatedBy', 'username email');
+  }
+
+  return termsDoc;
 };
 
 // Session info for admin UI bootstrapping
@@ -82,6 +120,61 @@ router.post('/bootstrap', auth, async (req, res) => {
 
 // All routes below require admin access
 router.use(auth, requireAdmin);
+
+router.get('/legal/terms', async (req, res) => {
+  try {
+    const termsDoc = await ensureTermsDocument();
+    if (!termsDoc) {
+      return res.status(500).json({ message: 'Unable to load Terms document' });
+    }
+
+    res.json({
+      terms: mapTermsDocument(termsDoc)
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.put('/legal/terms', async (req, res) => {
+  try {
+    const { publicContent, settingsContent, lastUpdatedLabel } = req.body || {};
+
+    const normalizedPublicContent = typeof publicContent === 'string' ? publicContent.trim() : '';
+    const normalizedSettingsContent = typeof settingsContent === 'string' ? settingsContent.trim() : '';
+    const normalizedLastUpdated = typeof lastUpdatedLabel === 'string'
+      ? lastUpdatedLabel.trim()
+      : '';
+
+    if (!normalizedPublicContent) {
+      return res.status(400).json({ message: 'publicContent is required' });
+    }
+
+    if (!normalizedSettingsContent) {
+      return res.status(400).json({ message: 'settingsContent is required' });
+    }
+
+    const termsDoc = await ensureTermsDocument();
+    if (!termsDoc) {
+      return res.status(500).json({ message: 'Unable to load Terms document' });
+    }
+
+    termsDoc.publicContent = normalizedPublicContent;
+    termsDoc.settingsContent = normalizedSettingsContent;
+    termsDoc.lastUpdatedLabel = normalizedLastUpdated || defaultLastUpdatedLabel;
+    termsDoc.updatedBy = req.user.userId;
+
+    await termsDoc.save();
+    await termsDoc.populate('updatedBy', 'username email');
+
+    res.json({
+      message: 'Terms updated successfully',
+      terms: mapTermsDocument(termsDoc)
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 router.get('/overview', async (req, res) => {
   try {
@@ -623,101 +716,272 @@ router.get('/reports', async (req, res) => {
   }
 });
 
+const buildPostsAggregationPipeline = ({ search = '', postType = 'all', includeDeleted = false }) => {
+  const pipeline = [
+    {
+      $match: includeDeleted
+        ? { isDeleted: true }
+        : { isDeleted: { $ne: true } }
+    }
+  ];
+
+  if (postType && postType !== 'all') {
+    pipeline.push({
+      $match: {
+        postType
+      }
+    });
+  }
+
+  pipeline.push(
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'user',
+        foreignField: '_id',
+        as: 'user'
+      }
+    },
+    {
+      $unwind: {
+        path: '$user',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'deletedBy',
+        foreignField: '_id',
+        as: 'deletedByUser'
+      }
+    },
+    {
+      $unwind: {
+        path: '$deletedByUser',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $addFields: {
+        likesCount: { $size: { $ifNull: ['$likes', []] } },
+        commentsCount: { $size: { $ifNull: ['$comments', []] } },
+        hasComments: {
+          $gt: [
+            { $size: { $ifNull: ['$comments', []] } },
+            0
+          ]
+        }
+      }
+    }
+  );
+
+  if (search) {
+    const regex = new RegExp(escapeRegex(search), 'i');
+    pipeline.push({
+      $match: {
+        $or: [
+          { title: regex },
+          { caption: regex },
+          { category: regex },
+          { postType: regex },
+          { deletedReason: regex },
+          { 'user.username': regex },
+          { 'user.email': regex },
+          { 'user.firstName': regex },
+          { 'user.lastName': regex },
+          { 'deletedByUser.username': regex },
+          { 'deletedByUser.email': regex }
+        ]
+      }
+    });
+  }
+
+  pipeline.push(
+    {
+      $project: {
+        _id: 1,
+        postType: 1,
+        title: 1,
+        category: 1,
+        caption: 1,
+        image: 1,
+        images: 1,
+        video: 1,
+        videos: 1,
+        rating: 1,
+        tags: 1,
+        likesCount: 1,
+        commentsCount: 1,
+        hasComments: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        isDeleted: 1,
+        deletedAt: 1,
+        deletedReason: 1,
+        user: {
+          _id: '$user._id',
+          username: '$user.username',
+          email: '$user.email',
+          firstName: '$user.firstName',
+          lastName: '$user.lastName'
+        },
+        deletedByUser: {
+          _id: '$deletedByUser._id',
+          username: '$deletedByUser.username',
+          email: '$deletedByUser.email'
+        }
+      }
+    },
+    {
+      $sort: includeDeleted
+        ? { deletedAt: -1, updatedAt: -1 }
+        : { createdAt: -1 }
+    },
+    {
+      $limit: 1000
+    }
+  );
+
+  return pipeline;
+};
+
 router.get('/posts', async (req, res) => {
   try {
     const search = String(req.query.search || '').trim();
     const postType = String(req.query.postType || 'all').trim();
-
-    const pipeline = [];
-
-    if (postType && postType !== 'all') {
-      pipeline.push({
-        $match: {
-          postType
-        }
-      });
-    }
-
-    pipeline.push(
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'user',
-          foreignField: '_id',
-          as: 'user'
-        }
-      },
-      {
-        $unwind: {
-          path: '$user',
-          preserveNullAndEmptyArrays: true
-        }
-      },
-      {
-        $addFields: {
-          likesCount: { $size: { $ifNull: ['$likes', []] } },
-          commentsCount: { $size: { $ifNull: ['$comments', []] } }
-        }
-      }
-    );
-
-    if (search) {
-      const regex = new RegExp(escapeRegex(search), 'i');
-      pipeline.push({
-        $match: {
-          $or: [
-            { title: regex },
-            { caption: regex },
-            { category: regex },
-            { postType: regex },
-            { 'user.username': regex },
-            { 'user.email': regex },
-            { 'user.firstName': regex },
-            { 'user.lastName': regex }
-          ]
-        }
-      });
-    }
-
-    pipeline.push(
-      {
-        $project: {
-          _id: 1,
-          postType: 1,
-          title: 1,
-          category: 1,
-          caption: 1,
-          image: 1,
-          images: 1,
-          video: 1,
-          videos: 1,
-          rating: 1,
-          tags: 1,
-          likesCount: 1,
-          commentsCount: 1,
-          createdAt: 1,
-          updatedAt: 1,
-          user: {
-            _id: '$user._id',
-            username: '$user.username',
-            email: '$user.email',
-            firstName: '$user.firstName',
-            lastName: '$user.lastName'
-          }
-        }
-      },
-      {
-        $sort: {
-          createdAt: -1
-        }
-      },
-      {
-        $limit: 1000
-      }
-    );
+    const pipeline = buildPostsAggregationPipeline({
+      search,
+      postType,
+      includeDeleted: false
+    });
 
     const posts = await Post.aggregate(pipeline);
     res.json(posts);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/posts/deleted', async (req, res) => {
+  try {
+    const search = String(req.query.search || '').trim();
+    const postType = String(req.query.postType || 'all').trim();
+
+    const pipeline = buildPostsAggregationPipeline({
+      search,
+      postType,
+      includeDeleted: true
+    });
+
+    const posts = await Post.aggregate(pipeline);
+    res.json(posts);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/posts/:postId', async (req, res) => {
+  try {
+    if (!isValidObjectId(req.params.postId)) {
+      return res.status(400).json({ message: 'Invalid post ID' });
+    }
+
+    const post = await Post.findById(req.params.postId)
+      .populate('user', 'username email profilePicture firstName lastName')
+      .populate('comments.user', 'username email profilePicture')
+      .populate('deletedBy', 'username email');
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const postObject = post.toObject();
+    postObject.comments = Array.isArray(postObject.comments)
+      ? postObject.comments.filter((comment) => comment && comment.user)
+      : [];
+
+    postObject.likesCount = Array.isArray(postObject.likes) ? postObject.likes.length : 0;
+    postObject.commentsCount = postObject.comments.length;
+    postObject.hasComments = postObject.commentsCount > 0;
+
+    res.json({ post: postObject });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/posts/:postId/comments', async (req, res) => {
+  try {
+    if (!isValidObjectId(req.params.postId)) {
+      return res.status(400).json({ message: 'Invalid post ID' });
+    }
+
+    const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+    if (!text) {
+      return res.status(400).json({ message: 'Comment text is required' });
+    }
+
+    if (text.length > 500) {
+      return res.status(400).json({ message: 'Comment is too long (max 500 characters)' });
+    }
+
+    const post = await Post.findOne({
+      _id: req.params.postId,
+      isDeleted: { $ne: true }
+    });
+
+    if (!post) {
+      return res.status(404).json({ message: 'Active post not found' });
+    }
+
+    post.comments.push({
+      user: req.user.userId,
+      text
+    });
+
+    await post.save();
+
+    const updatedPost = await Post.findById(post._id)
+      .populate('comments.user', 'username email profilePicture');
+
+    const latestComment = updatedPost?.comments?.[updatedPost.comments.length - 1] || null;
+
+    res.status(201).json({
+      message: 'Comment added',
+      comment: latestComment,
+      commentsCount: updatedPost?.comments?.length || 0
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.patch('/posts/:postId/restore', async (req, res) => {
+  try {
+    if (!isValidObjectId(req.params.postId)) {
+      return res.status(400).json({ message: 'Invalid post ID' });
+    }
+
+    const post = await Post.findOne({
+      _id: req.params.postId,
+      isDeleted: true
+    }).select('_id isDeleted');
+
+    if (!post) {
+      return res.status(404).json({ message: 'Deleted post not found' });
+    }
+
+    post.isDeleted = false;
+    post.deletedAt = undefined;
+    post.deletedBy = undefined;
+    post.deletedReason = '';
+    await post.save();
+
+    res.json({
+      message: 'Post restored successfully',
+      restoredPostId: req.params.postId
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
@@ -729,29 +993,30 @@ router.delete('/posts/:postId', async (req, res) => {
       return res.status(400).json({ message: 'Invalid post ID' });
     }
 
-    const postId = toObjectId(req.params.postId);
-    const existingPost = await Post.findById(postId).select('_id');
-
-    if (!existingPost) {
-      return res.status(404).json({ message: 'Post not found' });
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+    if (!reason) {
+      return res.status(400).json({ message: 'A delete reason is required' });
     }
 
-    await Promise.all([
-      Post.findByIdAndDelete(postId),
-      User.updateMany(
-        {},
-        {
-          $pull: {
-            posts: postId
-          }
-        }
-      ),
-      Report.deleteMany({ targetPost: postId })
-    ]);
+    const existingPost = await Post.findOne({
+      _id: req.params.postId,
+      isDeleted: { $ne: true }
+    }).select('_id');
+
+    if (!existingPost) {
+      return res.status(404).json({ message: 'Active post not found' });
+    }
+
+    existingPost.isDeleted = true;
+    existingPost.deletedAt = new Date();
+    existingPost.deletedBy = req.user.userId;
+    existingPost.deletedReason = reason;
+    await existingPost.save();
 
     res.json({
-      message: 'Post deleted successfully',
-      deletedPostId: req.params.postId
+      message: 'Post moved to deleted posts',
+      deletedPostId: req.params.postId,
+      deletedReason: reason
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });

@@ -68,8 +68,9 @@ const userChipTextContainerStyle: React.CSSProperties = {
 };
 
 const Friends: React.FC = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
+  const isBanned = Boolean(user?.isBanned);
 
   const [activeTab, setActiveTab] = useState<FriendsTab>('discover');
   const [discoverQuery, setDiscoverQuery] = useState('');
@@ -183,6 +184,11 @@ const Friends: React.FC = () => {
   const runUserAction = async (userId: string, requestFactory: () => Promise<Response>) => {
     if (!token || !userId) return;
 
+    if (isBanned) {
+      setError('Your account is banned from friend interactions.');
+      return;
+    }
+
     setUserBusy(userId, true);
     setError('');
 
@@ -269,32 +275,33 @@ const Friends: React.FC = () => {
 
   const renderDiscoverActions = (entry: NetworkUser) => {
     const isBusy = !!busyByUserId[entry.id];
+    const isInteractionDisabled = isBusy || isBanned;
 
     return (
       <div className="friend-row-actions">
         {renderCommonViewButton(entry)}
-        <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleFollowToggle(entry.id)} disabled={isBusy}>
+        <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleFollowToggle(entry.id)} disabled={isInteractionDisabled}>
           {entry.isFollowing ? 'Unfollow' : 'Follow'}
         </button>
         {entry.isFriend ? (
-          <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleRemoveFriend(entry.id)} disabled={isBusy}>
+          <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleRemoveFriend(entry.id)} disabled={isInteractionDisabled}>
             Remove Friend
           </button>
         ) : entry.hasIncomingFriendRequest ? (
           <>
-            <button className="btn-primary friend-action-btn" type="button" onClick={() => handleAcceptFriendRequest(entry.id)} disabled={isBusy}>
+            <button className="btn-primary friend-action-btn" type="button" onClick={() => handleAcceptFriendRequest(entry.id)} disabled={isInteractionDisabled}>
               Accept Friend
             </button>
-            <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleDeclineFriendRequest(entry.id)} disabled={isBusy}>
+            <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleDeclineFriendRequest(entry.id)} disabled={isInteractionDisabled}>
               Decline
             </button>
           </>
         ) : entry.hasOutgoingFriendRequest ? (
-          <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleCancelFriendRequest(entry.id)} disabled={isBusy}>
+          <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleCancelFriendRequest(entry.id)} disabled={isInteractionDisabled}>
             Cancel Request
           </button>
         ) : (
-          <button className="btn-primary friend-action-btn" type="button" onClick={() => handleSendFriendRequest(entry.id)} disabled={isBusy}>
+          <button className="btn-primary friend-action-btn" type="button" onClick={() => handleSendFriendRequest(entry.id)} disabled={isInteractionDisabled}>
             Add Friend
           </button>
         )}
@@ -315,6 +322,7 @@ const Friends: React.FC = () => {
 
     return list.map((entry) => {
       const isBusy = !!busyByUserId[entry.id];
+      const isInteractionDisabled = isBusy || isBanned;
 
       return (
         <div key={entry.id} className="friend-row">
@@ -337,21 +345,21 @@ const Friends: React.FC = () => {
           <div className="friend-row-actions">
             {renderCommonViewButton(entry)}
             {mode === 'friends' && (
-              <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleRemoveFriend(entry.id)} disabled={isBusy}>
+              <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleRemoveFriend(entry.id)} disabled={isInteractionDisabled}>
                 Remove Friend
               </button>
             )}
             {mode === 'following' && (
-              <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleFollowToggle(entry.id)} disabled={isBusy}>
+              <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleFollowToggle(entry.id)} disabled={isInteractionDisabled}>
                 Unfollow
               </button>
             )}
             {mode === 'followers' && (
               <>
-                <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleFollowToggle(entry.id)} disabled={isBusy}>
+                <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleFollowToggle(entry.id)} disabled={isInteractionDisabled}>
                   {entry.isFollowing ? 'Unfollow' : 'Follow Back'}
                 </button>
-                <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleRemoveFollower(entry.id)} disabled={isBusy}>
+                <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleRemoveFollower(entry.id)} disabled={isInteractionDisabled}>
                   Remove
                 </button>
               </>
@@ -375,6 +383,7 @@ const Friends: React.FC = () => {
           ) : (
             incoming.map((entry) => {
               const isBusy = !!busyByUserId[entry.id];
+              const isInteractionDisabled = isBusy || isBanned;
 
               return (
                 <div key={`incoming-${entry.id}`} className="friend-row">
@@ -396,10 +405,10 @@ const Friends: React.FC = () => {
 
                   <div className="friend-row-actions">
                     {renderCommonViewButton(entry)}
-                    <button className="btn-primary friend-action-btn" type="button" onClick={() => handleAcceptFriendRequest(entry.id)} disabled={isBusy}>
+                    <button className="btn-primary friend-action-btn" type="button" onClick={() => handleAcceptFriendRequest(entry.id)} disabled={isInteractionDisabled}>
                       Accept
                     </button>
-                    <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleDeclineFriendRequest(entry.id)} disabled={isBusy}>
+                    <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleDeclineFriendRequest(entry.id)} disabled={isInteractionDisabled}>
                       Decline
                     </button>
                   </div>
@@ -416,6 +425,7 @@ const Friends: React.FC = () => {
           ) : (
             outgoing.map((entry) => {
               const isBusy = !!busyByUserId[entry.id];
+              const isInteractionDisabled = isBusy || isBanned;
 
               return (
                 <div key={`outgoing-${entry.id}`} className="friend-row">
@@ -437,7 +447,7 @@ const Friends: React.FC = () => {
 
                   <div className="friend-row-actions">
                     {renderCommonViewButton(entry)}
-                    <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleCancelFriendRequest(entry.id)} disabled={isBusy}>
+                    <button className="btn-secondary friend-action-btn" type="button" onClick={() => handleCancelFriendRequest(entry.id)} disabled={isInteractionDisabled}>
                       Cancel
                     </button>
                   </div>
@@ -485,6 +495,20 @@ const Friends: React.FC = () => {
               fontSize: '13px'
             }}>
               {error}
+            </div>
+          )}
+
+          {isBanned && (
+            <div style={{
+              marginBottom: '14px',
+              padding: '10px 12px',
+              borderRadius: '8px',
+              border: '1px solid var(--brand-border)',
+              background: '#ffffff',
+              color: 'var(--brand-primary)',
+              fontSize: '13px'
+            }}>
+              Friend and follow actions are disabled while your account is banned.
             </div>
           )}
 

@@ -4,6 +4,16 @@ import userEvent from '@testing-library/user-event';
 import PostUploader from '../components/PostUploader';
 import { AuthProvider } from '../hooks/useAuth';
 
+const createMockResponse = (data: any, status = 200) => ({
+  ok: status >= 200 && status < 300,
+  status,
+  headers: {
+    get: () => 'application/json'
+  },
+  json: async () => data,
+  text: async () => JSON.stringify(data)
+});
+
 describe('PostUploader', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -16,7 +26,30 @@ describe('PostUploader', () => {
     localStorage.setItem('token', 'test-token');
     const mockOnUpload = jest.fn();
 
-    (global as any).fetch.mockResolvedValueOnce({ ok: true, json: async () => ({ _id: '1', caption: 'ok', image: 'url' }) });
+    (global as any).fetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes('/api/auth/session')) {
+        return Promise.resolve(createMockResponse({
+          user: {
+            id: 'u1',
+            username: 'tester',
+            email: 'tester@example.com',
+            profilePicture: '',
+            followers: [],
+            following: [],
+            followersCount: 0,
+            followingCount: 0
+          }
+        }));
+      }
+
+      if (url.includes('/api/posts')) {
+        return Promise.resolve(createMockResponse({ _id: '1', caption: 'ok', image: 'url' }));
+      }
+
+      return Promise.resolve(createMockResponse({ message: 'Not found' }, 404));
+    });
 
     render(
       <AuthProvider>
@@ -25,9 +58,7 @@ describe('PostUploader', () => {
     );
 
     const file = new File(['hi'], 'photo.png', { type: 'image/png' });
-    const input = screen.getByLabelText(/choose file/i) || screen.getByRole('textbox', { hidden: true });
-
-    // fallback: query by input[type=file]
+    screen.getByLabelText(/choose file/i);
     const fileInput = document.querySelector('input[type=file]') as HTMLInputElement;
     await userEvent.upload(fileInput, file);
 
@@ -35,6 +66,6 @@ describe('PostUploader', () => {
     await userEvent.click(screen.getByRole('button', { name: /post/i }));
 
     await waitFor(() => expect(mockOnUpload).toHaveBeenCalled());
-    expect(screen.getByText(/upload successful/i)).toBeInTheDocument();
+    expect(screen.getByText(/upload successful/i)).toBeTruthy();
   });
 });

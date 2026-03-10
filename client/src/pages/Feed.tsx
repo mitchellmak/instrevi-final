@@ -39,6 +39,8 @@ type OrderedPoster = PosterAggregate & {
   fameScore: number;
 };
 
+const OPEN_OVERLAY_EVENT = 'instrevi-open-overlay-for-post';
+
 const getEntityId = (value: unknown): string => {
   if (!value) return '';
   if (typeof value === 'string') return value;
@@ -75,6 +77,8 @@ const Feed: React.FC = () => {
   const [publicFollowerCounts, setPublicFollowerCounts] = useState<Record<string, number>>({});
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const authUserId = getEntityId(user);
+  const isBanned = Boolean(user?.isBanned);
+  const openPostId = searchParams.get('post') || '';
   const searchQuery = searchParams.get('q') || '';
   const showFavsOnly = searchParams.get('favs') === '1';
 
@@ -100,9 +104,44 @@ const Feed: React.FC = () => {
     setSearchParams(params, { replace: true });
   };
 
+  const openRecentPosterPost = (postId: string) => {
+    if (!postId) return;
+
+    const params = new URLSearchParams(searchParams);
+    params.set('post', postId);
+    setSearchParams(params);
+  };
+
   useEffect(() => {
     fetchPosts();
   }, []);
+
+  useEffect(() => {
+    if (!openPostId || loading) return;
+
+    const targetPostExists = posts.some((post) => post._id === openPostId);
+    if (!targetPostExists) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      const targetCard = document.querySelector(`[data-post-id="${openPostId}"]`) as HTMLElement | null;
+      targetCard?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      window.dispatchEvent(
+        new CustomEvent(OPEN_OVERLAY_EVENT, {
+          detail: {
+            postId: openPostId,
+            mediaIndex: 0
+          }
+        })
+      );
+
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('post');
+      setSearchParams(nextParams, { replace: true });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [openPostId, loading, posts, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!showMobileSearch) return;
@@ -397,24 +436,28 @@ const Feed: React.FC = () => {
           <div className="recent-posters-track">
             {orderedRecentPosters.map((entry) => {
               const isUnboxing = entry.latestPost.postType === 'unboxing';
+              const username = entry.user.username || 'User';
 
               return (
-                <div
+                <button
+                  type="button"
                   key={entry.userId}
                   className="recent-poster-item"
-                  aria-label={`${entry.user.username || 'User'} recently posted`}
+                  aria-label={`Open ${username} recent post`}
+                  onClick={() => openRecentPosterPost(entry.latestPost._id)}
                 >
                   <div className={`recent-poster-avatar-wrap recent-poster-avatar-wrap--${entry.group}`}>
                     <UserAvatar
                       user={entry.user as unknown as UserRef}
                       size={52}
-                      alt={entry.user.username || 'User'}
+                      alt={username}
                     />
                     <span className={`recent-poster-pill ${isUnboxing ? 'recent-poster-pill--unboxing' : 'recent-poster-pill--review'}`}>
-                      {isUnboxing ? 'Unboxing' : 'review'}
+                      {isUnboxing ? 'Unboxing' : 'Review'}
                     </span>
+                    <span className="recent-poster-name" title={username}>{username}</span>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -448,6 +491,8 @@ const Feed: React.FC = () => {
           className="feed-mobile-action feed-mobile-action--review"
           onClick={() => navigate('/create/review')}
           aria-label="Create review"
+          disabled={isBanned}
+          title={isBanned ? 'Banned users cannot create posts' : undefined}
         >
           <svg className="feed-mobile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z" />
@@ -463,6 +508,8 @@ const Feed: React.FC = () => {
           className="feed-mobile-action feed-mobile-action--unbox"
           onClick={() => navigate('/create/unboxing')}
           aria-label="Create unboxing"
+          disabled={isBanned}
+          title={isBanned ? 'Banned users cannot create posts' : undefined}
         >
           <svg className="feed-mobile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />

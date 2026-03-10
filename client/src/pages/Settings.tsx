@@ -5,32 +5,7 @@ const Settings: React.FC = () => {
   return (
     <SettingsLayout>
     <div>
-      <h1 className="settings-page-title">Settings & Privacy</h1>
-      
-      <div className="card settings-page-card">
-        <h3 style={{ marginBottom: '20px' }}>Privacy Settings</h3>
-        
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-            <input type="checkbox" style={{ marginRight: '10px' }} />
-            <span>Make my profile private</span>
-          </label>
-        </div>
-
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-            <input type="checkbox" style={{ marginRight: '10px' }} />
-            <span>Hide my email from other users</span>
-          </label>
-        </div>
-
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-            <input type="checkbox" style={{ marginRight: '10px' }} />
-            <span>Allow others to tag me in posts</span>
-          </label>
-        </div>
-      </div>
+      <h1 className="settings-page-title">Settings</h1>
 
       <div className="card settings-page-card">
         <h3 style={{ marginBottom: '20px' }}>Notification Settings</h3>

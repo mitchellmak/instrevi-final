@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import SettingsLayout from '../components/SettingsLayout';
 import UserAvatar from '../components/UserAvatar';
 
 const ProfileEdit: React.FC = () => {
   const { user, updateProfile } = useAuth();
+  const navigate = useNavigate();
   const [username, setUsername] = useState(user?.username || '');
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [middleName, setMiddleName] = useState(user?.middleName || '');
@@ -56,6 +58,15 @@ const ProfileEdit: React.FC = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleClose = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate('/feed');
   };
 
   const currentProfilePic = previewUrl || user?.profilePicture;
@@ -242,7 +253,11 @@ const ProfileEdit: React.FC = () => {
                   width: '100%', 
                   minHeight: '80px', 
                   resize: 'vertical',
-                  fontFamily: 'inherit' 
+                  fontFamily: 'inherit',
+                  color: '#262626',
+                  backgroundColor: '#ffffff',
+                  caretColor: '#262626',
+                  WebkitTextFillColor: '#262626'
                 }}
                 placeholder="Tell us about yourself..."
                 maxLength={150}
@@ -291,18 +306,9 @@ const ProfileEdit: React.FC = () => {
               <button 
                 type="button" 
                 className="btn-secondary"
-                onClick={() => {
-                  setUsername(user?.username || '');
-                  setFirstName(user?.firstName || '');
-                  setMiddleName(user?.middleName || '');
-                  setLastName(user?.lastName || '');
-                  setBio(user?.bio || '');
-                  setEmail(user?.email || '');
-                  setProfileImage(null);
-                  setPreviewUrl(null);
-                }}
+                onClick={handleClose}
               >
-                Cancel
+                Close
               </button>
             </div>
           </div>

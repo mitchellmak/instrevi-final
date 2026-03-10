@@ -10,8 +10,9 @@ interface SelectedMediaItem {
 }
 
 const CreateUnboxing: React.FC = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
+  const isBanned = Boolean(user?.isBanned);
   const chooseFilesInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const videoCameraInputRef = useRef<HTMLInputElement>(null);
@@ -80,6 +81,12 @@ const CreateUnboxing: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isBanned) {
+      setError('Your account is banned from creating posts.');
+      return;
+    }
+
     if (!title.trim() || !caption.trim() || selectedMedia.length === 0) {
       setError('Please fill in all fields and upload at least one photo or video');
       return;
@@ -168,6 +175,22 @@ const CreateUnboxing: React.FC = () => {
           fontSize: '14px'
         }}>
           {error}
+        </div>
+      )}
+
+      {isBanned && (
+        <div
+          style={{
+            marginBottom: '16px',
+            padding: '10px 12px',
+            borderRadius: '8px',
+            border: '1px solid var(--brand-border)',
+            background: '#ffffff',
+            color: 'var(--brand-primary)',
+            fontSize: '13px'
+          }}
+        >
+          Your account is banned from posting. You can still use other profile and settings pages.
         </div>
       )}
 
@@ -433,8 +456,9 @@ const CreateUnboxing: React.FC = () => {
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || isBanned}
           className="btn-dark btn-large"
+          title={isBanned ? 'Banned users cannot create posts' : undefined}
         >
           {loading ? 'Publishing...' : 'Publish Unboxing'}
         </button>

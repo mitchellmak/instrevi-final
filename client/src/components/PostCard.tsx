@@ -1,7 +1,10 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Post } from '../types';
 import UserChip from './UserChip';
 import UserAvatar from './UserAvatar';
+import { formatRichTextToHtml } from '../utils/richText';
+import { useAuth } from '../hooks/useAuth';
 
 interface PostCardProps {
   post: Post;
@@ -16,7 +19,20 @@ type PostMediaItem = {
 
 const OPEN_OVERLAY_EVENT = 'instrevi-open-overlay-for-post';
 
+const getEntityId = (value: unknown): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') {
+    const record = value as { id?: string; _id?: string };
+    return record.id || record._id || '';
+  }
+  return '';
+};
+
 const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const isBanned = Boolean(user?.isBanned);
   const [commentText, setCommentText] = React.useState('');
   const [liked, setLiked] = React.useState(false);
   const [isCaptionExpanded, setIsCaptionExpanded] = React.useState(false);
@@ -25,14 +41,30 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   const [isMediaOverlayOpen, setIsMediaOverlayOpen] = React.useState(false);
   const [isCommentsModalOpen, setIsCommentsModalOpen] = React.useState(false);
   const [isFullReviewModalOpen, setIsFullReviewModalOpen] = React.useState(false);
+  const [overlayPostTransitionDirection, setOverlayPostTransitionDirection] = React.useState<'next' | 'prev' | null>(null);
   const mediaCarouselRef = React.useRef<HTMLDivElement>(null);
   const overlayCarouselRef = React.useRef<HTMLDivElement>(null);
   const cardRef = React.useRef<HTMLDivElement>(null);
   const overlayTouchStartXRef = React.useRef<number | null>(null);
   const overlayTouchStartYRef = React.useRef<number | null>(null);
+  const overlayTouchStartMediaIndexRef = React.useRef<number | null>(null);
+  const overlayGestureLockUntilRef = React.useRef(0);
+  const overlayHorizontalClampRangeRef = React.useRef<{ minIndex: number; maxIndex: number } | null>(null);
+  const overlayHorizontalSettleTimerRef = React.useRef<number | null>(null);
+  const overlayPostTransitionTimerRef = React.useRef<number | null>(null);
+  const overlayPostTransitionInProgressRef = React.useRef(false);
+  const wasMediaOverlayOpenRef = React.useRef(false);
   const likes = Array.isArray(post.likes) ? post.likes : [];
   const comments = Array.isArray(post.comments) ? post.comments : [];
   const postUser = post.user || ({ username: 'Deleted user' } as any);
+  const postUserId = getEntityId(post.user);
+  const postCategory = post.category === 'Places' ? 'Establishment' : post.category;
+  const formattedCaptionHtml = React.useMemo(() => formatRichTextToHtml(post.caption || ''), [post.caption]);
+
+  const openPostUserProfile = () => {
+    if (!postUserId) return;
+    navigate(`/profile/${postUserId}`);
+  };
 
   const mediaItems = React.useMemo<PostMediaItem[]>(() => {
     const items: PostMediaItem[] = [];
@@ -79,7 +111,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   }, [activeMediaIndex, mediaItems.length]);
 
   React.useEffect(() => {
-    if (!isMediaOverlayOpen || !overlayCarouselRef.current) return;
+    const justOpened = isMediaOverlayOpen && !wasMediaOverlayOpenRef.current;
+    wasMediaOverlayOpenRef.current = isMediaOverlayOpen;
+
+    if (!justOpened || !overlayCarouselRef.current) return;
 
     const target = overlayCarouselRef.current;
     const left = activeMediaIndex * target.clientWidth;
@@ -90,6 +125,37 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
 
     return () => cancelAnimationFrame(frame);
   }, [isMediaOverlayOpen, activeMediaIndex]);
+
+  React.useEffect(() => {
+    return () => {
+      if (overlayHorizontalSettleTimerRef.current !== null) {
+        window.clearTimeout(overlayHorizontalSettleTimerRef.current);
+        overlayHorizontalSettleTimerRef.current = null;
+      }
+
+      if (overlayPostTransitionTimerRef.current !== null) {
+        window.clearTimeout(overlayPostTransitionTimerRef.current);
+        overlayPostTransitionTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const resetOverlayHorizontalSnapState = () => {
+    overlayHorizontalClampRangeRef.current = null;
+    if (overlayHorizontalSettleTimerRef.current !== null) {
+      window.clearTimeout(overlayHorizontalSettleTimerRef.current);
+      overlayHorizontalSettleTimerRef.current = null;
+    }
+  };
+
+  const resetOverlayPostTransitionState = () => {
+    overlayPostTransitionInProgressRef.current = false;
+    setOverlayPostTransitionDirection(null);
+    if (overlayPostTransitionTimerRef.current !== null) {
+      window.clearTimeout(overlayPostTransitionTimerRef.current);
+      overlayPostTransitionTimerRef.current = null;
+    }
+  };
 
   const actionIconButtonStyle: React.CSSProperties = {
     background: 'none',
@@ -153,12 +219,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   );
 
   const handleLike = () => {
+    if (isBanned) return;
     setLiked(!liked);
     onLike(post._id);
   };
 
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isBanned) return;
     if (commentText.trim()) {
       onComment(post._id, commentText);
       setCommentText('');
@@ -191,12 +259,16 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   };
 
   const openCommentsModal = () => {
+    resetOverlayPostTransitionState();
+    resetOverlayHorizontalSnapState();
     setIsMediaOverlayOpen(false);
     setIsFullReviewModalOpen(false);
     setIsCommentsModalOpen(true);
   };
 
   const closeMediaOverlay = () => {
+    resetOverlayPostTransitionState();
+    resetOverlayHorizontalSnapState();
     setIsMediaOverlayOpen(false);
     setIsFullReviewModalOpen(false);
   };
@@ -253,6 +325,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     if (mediaItems.length === 0) return;
 
     const boundedIndex = Math.min(mediaItems.length - 1, Math.max(0, index));
+    resetOverlayPostTransitionState();
+    resetOverlayHorizontalSnapState();
     setActiveMediaIndex(boundedIndex);
     setIsCommentsModalOpen(false);
     setIsFullReviewModalOpen(false);
@@ -345,9 +419,91 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     }
   };
 
+  const tryAcquireOverlayGestureLock = () => {
+    const now = Date.now();
+    if (now < overlayGestureLockUntilRef.current) return false;
+    overlayGestureLockUntilRef.current = now + 60;
+    return true;
+  };
+
+  const scrollOverlayToMediaIndex = (index: number, behavior: ScrollBehavior = 'smooth') => {
+    if (!overlayCarouselRef.current) return;
+
+    overlayCarouselRef.current.scrollTo({
+      left: index * overlayCarouselRef.current.clientWidth,
+      behavior
+    });
+
+    setActiveMediaIndex(index);
+  };
+
+  const openAdjacentOverlayMedia = (direction: 'next' | 'prev') => {
+    if (mediaItems.length <= 1) return false;
+
+    const nextIndex = direction === 'next'
+      ? Math.min(mediaItems.length - 1, activeMediaIndex + 1)
+      : Math.max(0, activeMediaIndex - 1);
+
+    if (nextIndex === activeMediaIndex) return false;
+
+    scrollOverlayToMediaIndex(nextIndex, 'smooth');
+    return true;
+  };
+
+  const snapOverlayMediaWithinRange = (minAllowedIndex: number, maxAllowedIndex: number) => {
+    if (!overlayCarouselRef.current || mediaItems.length <= 1) return;
+
+    const { scrollLeft, clientWidth } = overlayCarouselRef.current;
+    if (!clientWidth) return;
+
+    const rawIndex = Math.round(scrollLeft / clientWidth);
+    const boundedRawIndex = Math.max(0, Math.min(mediaItems.length - 1, rawIndex));
+    const clampedIndex = Math.max(minAllowedIndex, Math.min(maxAllowedIndex, boundedRawIndex));
+
+    scrollOverlayToMediaIndex(clampedIndex, 'smooth');
+  };
+
+  const scheduleOverlayHorizontalSnap = () => {
+    if (!overlayHorizontalClampRangeRef.current) return;
+
+    if (overlayHorizontalSettleTimerRef.current !== null) {
+      window.clearTimeout(overlayHorizontalSettleTimerRef.current);
+    }
+
+    overlayHorizontalSettleTimerRef.current = window.setTimeout(() => {
+      overlayHorizontalSettleTimerRef.current = null;
+
+      const activeRange = overlayHorizontalClampRangeRef.current;
+      if (!activeRange) return;
+
+      overlayHorizontalClampRangeRef.current = null;
+      snapOverlayMediaWithinRange(activeRange.minIndex, activeRange.maxIndex);
+    }, 90);
+  };
+
+  const triggerAdjacentPostWithTransition = (direction: 'next' | 'prev') => {
+    if (overlayPostTransitionInProgressRef.current) return;
+
+    overlayPostTransitionInProgressRef.current = true;
+    setOverlayPostTransitionDirection(direction);
+
+    if (overlayPostTransitionTimerRef.current !== null) {
+      window.clearTimeout(overlayPostTransitionTimerRef.current);
+    }
+
+    overlayPostTransitionTimerRef.current = window.setTimeout(() => {
+      overlayPostTransitionTimerRef.current = null;
+      overlayPostTransitionInProgressRef.current = false;
+      setOverlayPostTransitionDirection(null);
+      scrollAdjacentPost(direction);
+    }, 120);
+  };
+
   const handleOverlayTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    resetOverlayHorizontalSnapState();
     overlayTouchStartXRef.current = event.touches[0]?.clientX ?? null;
     overlayTouchStartYRef.current = event.touches[0]?.clientY ?? null;
+    overlayTouchStartMediaIndexRef.current = activeMediaIndex;
   };
 
   const handleOverlayTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
@@ -358,29 +514,56 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
 
     const endY = event.changedTouches[0]?.clientY ?? overlayTouchStartYRef.current;
     const deltaY = overlayTouchStartYRef.current - endY;
+    const startMediaIndex = overlayTouchStartMediaIndexRef.current ?? activeMediaIndex;
     overlayTouchStartXRef.current = null;
     overlayTouchStartYRef.current = null;
+    overlayTouchStartMediaIndexRef.current = null;
 
     if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (Math.abs(deltaX) < 16) return;
+
+      const minAllowedIndex = Math.max(0, startMediaIndex - 1);
+      const maxAllowedIndex = Math.min(mediaItems.length - 1, startMediaIndex + 1);
+      overlayHorizontalClampRangeRef.current = {
+        minIndex: minAllowedIndex,
+        maxIndex: maxAllowedIndex
+      };
+      scheduleOverlayHorizontalSnap();
       return;
     }
 
     if (Math.abs(deltaY) < 60) return;
+    if (!tryAcquireOverlayGestureLock()) return;
 
     if (deltaY > 0) {
-      scrollAdjacentPost('next');
+      triggerAdjacentPostWithTransition('next');
     } else {
-      scrollAdjacentPost('prev');
+      triggerAdjacentPostWithTransition('prev');
     }
   };
 
   const handleOverlayWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    const isHorizontal = Math.abs(event.deltaX) > Math.abs(event.deltaY);
+
+    if (isHorizontal) {
+      if (Math.abs(event.deltaX) < 24) return;
+      if (!tryAcquireOverlayGestureLock()) return;
+
+      if (event.deltaX > 0) {
+        openAdjacentOverlayMedia('next');
+      } else {
+        openAdjacentOverlayMedia('prev');
+      }
+      return;
+    }
+
     if (Math.abs(event.deltaY) < 24) return;
+    if (!tryAcquireOverlayGestureLock()) return;
 
     if (event.deltaY > 0) {
-      scrollAdjacentPost('next');
+      triggerAdjacentPostWithTransition('next');
     } else {
-      scrollAdjacentPost('prev');
+      triggerAdjacentPostWithTransition('prev');
     }
   };
 
@@ -393,6 +576,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     const nextIndex = Math.round(scrollLeft / clientWidth);
     if (nextIndex !== activeMediaIndex) {
       setActiveMediaIndex(nextIndex);
+    }
+
+    if (overlayHorizontalClampRangeRef.current) {
+      scheduleOverlayHorizontalSnap();
     }
   };
 
@@ -504,7 +691,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
 
     return (
       <div
-        className="post-media-overlay"
+        className={`post-media-overlay${overlayPostTransitionDirection ? ` post-media-overlay--post-transition-${overlayPostTransitionDirection}` : ''}`}
         onClick={closeMediaOverlay}
         onTouchStart={handleOverlayTouchStart}
         onTouchEnd={handleOverlayTouchEnd}
@@ -561,14 +748,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
                   key={`overlay-dot-${index}`}
                   type="button"
                   className={`post-media-dot ${index === activeMediaIndex ? 'active' : ''}`}
-                  onClick={() => {
-                    if (!overlayCarouselRef.current) return;
-                    overlayCarouselRef.current.scrollTo({
-                      left: index * overlayCarouselRef.current.clientWidth,
-                      behavior: 'smooth'
-                    });
-                    setActiveMediaIndex(index);
-                  }}
+                  onClick={() => scrollOverlayToMediaIndex(index, 'auto')}
                   aria-label={`Go to fullscreen media ${index + 1}`}
                 />
               ))}
@@ -681,7 +861,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
 
             <div className="post-review-modal-block">
               <div className="post-review-modal-label">Review</div>
-              <p className="post-review-modal-text">{post.caption || 'No review text provided.'}</p>
+              {post.caption ? (
+                <div
+                  className="post-review-modal-text"
+                  dangerouslySetInnerHTML={{ __html: formattedCaptionHtml }}
+                />
+              ) : (
+                <p className="post-review-modal-text">No review text provided.</p>
+              )}
             </div>
           </div>
         </div>
@@ -689,11 +876,59 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     );
   };
 
+  const renderInlineCommentInput = () => (
+    <form
+      onSubmit={handleCommentSubmit}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        marginTop: '8px'
+      }}
+    >
+      <input
+        type="text"
+        placeholder={isBanned ? 'Comments are disabled for banned users' : 'Add a comment...'}
+        value={commentText}
+        onChange={(e) => setCommentText(e.target.value)}
+        disabled={isBanned}
+        style={{
+          flex: 1,
+          height: '36px',
+          border: '1px solid var(--brand-border)',
+          borderRadius: '8px',
+          padding: '0 10px',
+          fontSize: '13px',
+          outline: 'none',
+          fontFamily: "'Poppins', sans-serif"
+        }}
+      />
+      <button
+        type="submit"
+        disabled={isBanned || !commentText.trim()}
+        title={isBanned ? 'Banned users cannot like or comment' : undefined}
+        style={{
+          border: 'none',
+          background: 'none',
+          color: !isBanned && commentText.trim() ? 'var(--brand-pop)' : 'var(--brand-primary)',
+          fontWeight: 600,
+          fontSize: '13px',
+          cursor: !isBanned && commentText.trim() ? 'pointer' : 'not-allowed'
+        }}
+      >
+        Post
+      </button>
+    </form>
+  );
+
   const renderCommentPreview = () => {
     if (comments.length === 0) {
       return (
-        <div style={{ marginBottom: '12px', fontSize: '13px', color: 'var(--brand-primary)' }}>
-          No comments yet
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--brand-primary)' }}>
+            No comments yet
+          </div>
+          {renderInlineCommentInput()}
         </div>
       );
     }
@@ -710,6 +945,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
           <button
             type="button"
             onClick={openCommentsModal}
+            disabled={isBanned}
+            title={isBanned ? 'Banned users cannot like or comment' : undefined}
             style={{
               border: 'none',
               background: 'none',
@@ -717,7 +954,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
               color: 'var(--brand-primary)',
               fontSize: '12px',
               fontWeight: 500,
-              cursor: 'pointer'
+              cursor: isBanned ? 'not-allowed' : 'pointer',
+              opacity: isBanned ? 0.45 : 1
             }}
           >
             View all {comments.length} comments
@@ -761,15 +999,17 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
           <form className="post-comments-modal-form" onSubmit={handleCommentSubmit}>
             <input
               type="text"
-              placeholder="Add a comment..."
+              placeholder={isBanned ? 'Comments are disabled for banned users' : 'Add a comment...'}
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
               className="post-comments-modal-input"
+              disabled={isBanned}
             />
             <button
               type="submit"
               className="post-comments-modal-submit"
-              disabled={!commentText.trim()}
+              disabled={isBanned || !commentText.trim()}
+              title={isBanned ? 'Banned users cannot like or comment' : undefined}
             >
               Post
             </button>
@@ -784,17 +1024,22 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
       <div ref={cardRef} className="card" data-post-id={post._id} data-has-media={mediaItems.length > 0 ? 'true' : 'false'} style={{ fontFamily: "'Poppins', sans-serif" }}>
         {/* Review Header */}
         <div style={{ padding: '10px 16px 6px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-            <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <span style={{ fontSize: '12px', color: 'var(--brand-primary)', fontWeight: '500' }}>
-                REVIEW • {post.category || 'Uncategorized'}
+                REVIEW • {postCategory || 'Uncategorized'}
               </span>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', margin: '6px 0 0 0', maxWidth: '70%' }}>
-                {post.title}
-              </h3>
+
+              {typeof post.rating === 'number' && (
+                <div style={{ marginTop: '6px' }}>
+                  {renderStars(post.rating)}
+                </div>
+              )}
             </div>
             <UserChip
               user={postUser as any}
+              onClick={postUserId ? openPostUserProfile : undefined}
+              ariaLabel={`Open ${postUser.username || 'User'} profile`}
               avatarSize={40}
               containerStyle={{ flexDirection: 'column', gap: '4px' }}
               textContainerStyle={{ alignItems: 'center' }}
@@ -802,10 +1047,19 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
             />
           </div>
 
-          {/* Star Rating */}
-          <div style={{ marginBottom: '8px' }}>
-            {renderStars(post.rating)}
-          </div>
+          <h3
+            title={post.title || ''}
+            style={{
+              fontSize: '18px',
+              fontWeight: '600',
+              margin: '0 0 2px 0',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {post.title}
+          </h3>
         </div>
 
         {/* Review Media */}
@@ -819,9 +1073,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
               className={`post-review-caption ${isCaptionExpanded ? 'expanded' : 'collapsed'}`}
               onClick={() => setIsCaptionExpanded((prev) => !prev)}
               title={isCaptionExpanded ? 'Tap to collapse' : 'Tap to expand'}
-            >
-              {post.caption}
-            </div>
+              dangerouslySetInnerHTML={{ __html: formattedCaptionHtml }}
+            />
           )}
 
           {/* Stats */}
@@ -882,16 +1135,26 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
           <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid var(--brand-border)' }}>
             <button 
               onClick={handleLike}
-              style={{ ...actionIconButtonStyle, opacity: liked ? 1 : 0.8 }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+              disabled={isBanned}
+              title={isBanned ? 'Banned users cannot like or comment' : undefined}
+              style={{ ...actionIconButtonStyle, opacity: isBanned ? 0.45 : (liked ? 1 : 0.8), cursor: isBanned ? 'not-allowed' : 'pointer' }}
+              onMouseEnter={(e) => {
+                if (isBanned) return;
+                e.currentTarget.style.transform = 'scale(1.1)';
+              }}
               onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
             >
               {renderHeartIcon()}
             </button>
             <button
-              style={actionIconButtonStyle}
+              style={{ ...actionIconButtonStyle, opacity: isBanned ? 0.45 : 1, cursor: isBanned ? 'not-allowed' : 'pointer' }}
               onClick={openCommentsModal}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+              disabled={isBanned}
+              title={isBanned ? 'Banned users cannot like or comment' : undefined}
+              onMouseEnter={(e) => {
+                if (isBanned) return;
+                e.currentTarget.style.transform = 'scale(1.1)';
+              }}
               onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
             >
               {renderCommentIcon()}
@@ -927,7 +1190,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
             <div style={{ flex: 1 }}>
               <span style={{ fontSize: '12px', color: 'var(--brand-primary)', fontWeight: '500' }}>
-                UNBOXING • {post.category || 'Uncategorized'}
+                UNBOXING • {postCategory || 'Uncategorized'}
               </span>
               <h3 style={{ fontSize: '18px', fontWeight: '600', margin: '6px 0 0 0' }}>
                 {post.title}
@@ -935,6 +1198,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
             </div>
             <UserChip
               user={post.user as any}
+              onClick={postUserId ? openPostUserProfile : undefined}
+              ariaLabel={`Open ${postUser.username || 'User'} profile`}
               avatarSize={40}
               containerStyle={{ flexDirection: 'column', gap: '4px' }}
               textContainerStyle={{ alignItems: 'center' }}
@@ -954,25 +1219,34 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
               className={`post-review-caption ${isCaptionExpanded ? 'expanded' : 'collapsed'}`}
               onClick={() => setIsCaptionExpanded((prev) => !prev)}
               title={isCaptionExpanded ? 'Tap to collapse' : 'Tap to expand'}
-            >
-              {post.caption}
-            </div>
+              dangerouslySetInnerHTML={{ __html: formattedCaptionHtml }}
+            />
           )}
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid var(--brand-border)' }}>
             <button 
               onClick={handleLike}
-              style={{ ...actionIconButtonStyle, opacity: liked ? 1 : 0.8 }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+              disabled={isBanned}
+              title={isBanned ? 'Banned users cannot like or comment' : undefined}
+              style={{ ...actionIconButtonStyle, opacity: isBanned ? 0.45 : (liked ? 1 : 0.8), cursor: isBanned ? 'not-allowed' : 'pointer' }}
+              onMouseEnter={(e) => {
+                if (isBanned) return;
+                e.currentTarget.style.transform = 'scale(1.1)';
+              }}
               onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
             >
               {renderHeartIcon()}
             </button>
             <button
-              style={actionIconButtonStyle}
+              style={{ ...actionIconButtonStyle, opacity: isBanned ? 0.45 : 1, cursor: isBanned ? 'not-allowed' : 'pointer' }}
               onClick={openCommentsModal}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+              disabled={isBanned}
+              title={isBanned ? 'Banned users cannot like or comment' : undefined}
+              onMouseEnter={(e) => {
+                if (isBanned) return;
+                e.currentTarget.style.transform = 'scale(1.1)';
+              }}
               onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
             >
               {renderCommentIcon()}
@@ -1005,7 +1279,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     <div ref={cardRef} className="card" data-post-id={post._id} data-has-media={mediaItems.length > 0 ? 'true' : 'false'} style={{ fontFamily: "'Poppins', sans-serif" }}>
       {/* Post Header */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px 8px' }}>
-        <UserChip user={post.user as any} avatarSize={32} />
+        <UserChip
+          user={post.user as any}
+          onClick={postUserId ? openPostUserProfile : undefined}
+          ariaLabel={`Open ${postUser.username || 'User'} profile`}
+          avatarSize={32}
+        />
       </div>
 
       {/* Post Media */}
@@ -1016,16 +1295,26 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
         <div style={{ display: 'flex', gap: '16px', marginBottom: '12px' }}>
           <button
             onClick={handleLike}
-            style={{ ...actionIconButtonStyle, opacity: liked ? 1 : 0.8 }}
-            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+            disabled={isBanned}
+            title={isBanned ? 'Banned users cannot like or comment' : undefined}
+            style={{ ...actionIconButtonStyle, opacity: isBanned ? 0.45 : (liked ? 1 : 0.8), cursor: isBanned ? 'not-allowed' : 'pointer' }}
+            onMouseEnter={(e) => {
+              if (isBanned) return;
+              e.currentTarget.style.transform = 'scale(1.1)';
+            }}
             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
           >
             {renderHeartIcon()}
           </button>
           <button
-            style={actionIconButtonStyle}
+            style={{ ...actionIconButtonStyle, opacity: isBanned ? 0.45 : 1, cursor: isBanned ? 'not-allowed' : 'pointer' }}
             onClick={openCommentsModal}
-            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+            disabled={isBanned}
+            title={isBanned ? 'Banned users cannot like or comment' : undefined}
+            onMouseEnter={(e) => {
+              if (isBanned) return;
+              e.currentTarget.style.transform = 'scale(1.1)';
+            }}
             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
           >
             {renderCommentIcon()}
@@ -1046,8 +1335,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
 
         {post.caption && (
           <div style={{ marginBottom: '12px' }}>
-            <span style={{ fontWeight: '600' }}>{post.user.username}</span>
-            {' '}{post.caption}
+            <span style={{ fontWeight: '600' }}>{postUser.username || 'Deleted user'}</span>
+            {' '}
+            <span dangerouslySetInnerHTML={{ __html: formattedCaptionHtml }} />
           </div>
         )}
 
