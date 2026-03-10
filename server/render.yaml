@@ -18,3 +18,21 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: RECAPTCHA_SECRET
+        sync: false
+      - key: RECAPTCHA_REQUIRED
+        sync: false
+      - key: BLOCK_UNVERIFIED_LOGIN
+        sync: false

@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { AuthResponse, User } from '../types';
-import { apiFetch } from '../utils/apiFetch';
+import { AUTH_EXPIRED_EVENT, apiFetch } from '../utils/apiFetch';
 
 interface AuthContextType {
   user: User | null;
@@ -14,26 +14,118 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const parseResponseData = async (response: Response) => {
+  const text = await response.text();
+
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text };
+  }
+};
+
 export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    if (savedToken) {
-      setToken(savedToken);
-    }
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (e) {
-        localStorage.removeItem('user');
-      }
-    }
-    setLoading(false);
+  const clearStoredAuth = useCallback(() => {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const handleAuthExpired = () => {
+      clearStoredAuth();
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    };
+  }, [clearStoredAuth]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const initializeAuth = async () => {
+      const savedToken = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
+
+      if (!savedToken) {
+        if (savedUser) {
+          localStorage.removeItem('user');
+        }
+
+        if (isMounted) {
+          setUser(null);
+          setToken(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (isMounted) {
+        setToken(savedToken);
+      }
+
+      if (savedUser) {
+        try {
+          if (isMounted) {
+            setUser(JSON.parse(savedUser));
+          }
+        } catch {
+          localStorage.removeItem('user');
+        }
+      }
+
+      try {
+        const response = await apiFetch('/api/auth/session', {
+          headers: {
+            Authorization: `Bearer ${savedToken}`
+          }
+        });
+
+        const data = await parseResponseData(response);
+
+        if (!response.ok || !data?.user) {
+          throw new Error(data?.message || 'Session expired');
+        }
+
+        if (!isMounted) {
+          return;
+        }
+
+        setUser(data.user);
+        localStorage.setItem('user', JSON.stringify(data.user));
+      } catch {
+        if (isMounted) {
+          clearStoredAuth();
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [clearStoredAuth]);
 
   const login = async (email: string, password: string, recaptchaToken?: string) => {
     const body: any = { email, password };
@@ -45,9 +137,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }
       body: JSON.stringify(body),
     });
 
-    const text = await response.text();
-    let data;
-    try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { message: text }; }
+    const data = await parseResponseData(response);
 
     if (!response.ok) {
       throw new Error(data.message || 'Login failed');
@@ -67,9 +157,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }
       body: JSON.stringify({ username, email, password, firstName, middleName, lastName }),
     });
 
-    const text = await response.text();
-    let data;
-    try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { message: text }; }
+    const data = await parseResponseData(response);
 
     if (!response.ok) {
       throw new Error(data.message || 'Registration failed');
@@ -93,9 +181,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }
       body: formData,
     });
 
-    const text = await response.text();
-    let data;
-    try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { message: text }; }
+    const data = await parseResponseData(response);
+
+    if (response.status === 401) {
+      clearStoredAuth();
+      throw new Error('Session expired. Please log in again.');
+    }
 
     if (!response.ok) {
       throw new Error(data.message || 'Profile update failed');
@@ -111,10 +202,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }
   };
 
   const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    clearStoredAuth();
   };
 
   return (

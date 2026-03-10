@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const auth = require('../middleware/auth');
 const nodemailer = require('nodemailer');
 
 const router = express.Router();
@@ -256,6 +257,40 @@ router.post('/login', async (req, res) => {
         profilePicture: user.profilePicture,
         isAdmin: user.isAdmin || false,
         isBanned: user.isBanned || false
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Validate active auth session
+router.get('/session', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId)
+      .select('username firstName middleName lastName email emailVerified profilePicture isAdmin isBanned followers following');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({
+      user: {
+        id: user._id,
+        username: user.username,
+        firstName: user.firstName || '',
+        middleName: user.middleName || '',
+        lastName: user.lastName || '',
+        email: user.email,
+        emailVerified: user.emailVerified || false,
+        profilePicture: user.profilePicture,
+        isAdmin: user.isAdmin || false,
+        isBanned: user.isBanned || false,
+        followers: user.followers || [],
+        following: user.following || [],
+        followersCount: Array.isArray(user.followers) ? user.followers.length : 0,
+        followingCount: Array.isArray(user.following) ? user.following.length : 0
       }
     });
   } catch (error) {

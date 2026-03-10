@@ -32,11 +32,17 @@
 2. Configure API endpoints in frontend
 
 ## 🔧 Environment Variables for Render:
-- MONGODB_URI: `mongodb+srv://mitchellmak_db_user:swFexHe1hbMYHUsf@instrevi.b0l6nkn.mongodb.net/instrevi?appName=Instrevi`
-- JWT_SECRET: `InstreviSuperSecretKey2024!@#$%^&*()_+SecureJWTTokenForAuth`
-- CLOUDINARY_CLOUD_NAME: `diie3bl9z`
-- CLOUDINARY_API_KEY: `469939416852124`
-- CLOUDINARY_API_SECRET: `mOF7Ai3kzeqM6r-uDIRyexBroIg`
+- MONGODB_URI: `<your_mongodb_atlas_uri>`
+- JWT_SECRET: `<strong_random_secret>`
+- CLOUDINARY_CLOUD_NAME: `<your_cloudinary_cloud_name>`
+- CLOUDINARY_API_KEY: `<your_cloudinary_api_key>`
+- CLOUDINARY_API_SECRET: `<your_cloudinary_api_secret>`
+- FRONTEND_URL: `https://www.instrevi.com`
+
+## 🔐 Security Note
+- Do not store real secrets in the repository.
+- Keep all production credentials only in Render/Vercel environment settings.
+- If any credentials were previously committed, rotate them immediately.
 
 ## 🎯 Result:
 - Live app at instrevi.com
