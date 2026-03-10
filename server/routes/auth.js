@@ -6,6 +6,41 @@ const auth = require('../middleware/auth');
 const nodemailer = require('nodemailer');
 
 const router = express.Router();
+const DEFAULT_FRONTEND_URL = process.env.NODE_ENV === 'production'
+  ? 'https://www.instrevi.com'
+  : 'http://localhost:3000';
+
+const resolveFrontendBaseUrl = () => {
+  const configuredValue = typeof process.env.FRONTEND_URL === 'string'
+    ? process.env.FRONTEND_URL.trim()
+    : '';
+
+  if (!configuredValue) {
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('[auth] FRONTEND_URL is not set in production; using https://www.instrevi.com for email links.');
+    }
+    return DEFAULT_FRONTEND_URL;
+  }
+
+  try {
+    const parsed = new URL(configuredValue);
+    const hasSupportedProtocol = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    const isVercelDeployHook = parsed.hostname === 'api.vercel.com'
+      && parsed.pathname.includes('/v1/integrations/deploy');
+
+    if (!hasSupportedProtocol || isVercelDeployHook) {
+      console.warn('[auth] FRONTEND_URL is invalid for user-facing links; falling back to a safe default.');
+      return DEFAULT_FRONTEND_URL;
+    }
+
+    return parsed.origin;
+  } catch {
+    console.warn('[auth] FRONTEND_URL is malformed; falling back to a safe default.');
+    return DEFAULT_FRONTEND_URL;
+  }
+};
+
+const frontendBaseUrl = resolveFrontendBaseUrl();
 
 const smtpHost = typeof process.env.SMTP_HOST === 'string' ? process.env.SMTP_HOST.trim() : '';
 const smtpUser = typeof process.env.SMTP_USER === 'string' ? process.env.SMTP_USER.trim() : '';
@@ -120,9 +155,7 @@ if (process.env.NODE_ENV !== 'test') {
     })();
   }
 
-  if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
-    console.warn('[auth] FRONTEND_URL is not set in production; email links may point to localhost.');
-  }
+  console.log(`[auth] Email link base URL: ${frontendBaseUrl}`);
 }
 
 async function sendEmail(to, subject, text, html) {
@@ -232,8 +265,7 @@ router.post('/register', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const verifyUrl = `${frontend}/verify-email?token=${verificationToken}`;
+    const verifyUrl = `${frontendBaseUrl}/verify-email?token=${verificationToken}`;
 
     // Send verification email (and return token/url in non-production for dev)
     try {
@@ -313,8 +345,7 @@ router.post('/resend-verification', async (req, res) => {
     user.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000;
     await user.save();
 
-    const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const verifyUrl = `${frontend}/verify-email?token=${verificationToken}`;
+    const verifyUrl = `${frontendBaseUrl}/verify-email?token=${verificationToken}`;
 
     try {
       await sendEmail(
@@ -359,8 +390,7 @@ router.post('/forgot-password', async (req, res) => {
     await user.save();
 
     // Send reset email and (in dev) return token in response for convenience
-    const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const resetUrl = `${frontend}/reset-password?token=${resetToken}`;
+    const resetUrl = `${frontendBaseUrl}/reset-password?token=${resetToken}`;
 
     try {
       await sendEmail(email, 'Instrevi password reset', `Visit ${resetUrl} to reset your password.`, `<p>Click <a href=\"${resetUrl}\">here</a> to reset your password for Instrevi.</p>`);
