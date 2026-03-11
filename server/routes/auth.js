@@ -324,6 +324,40 @@ async function sendEmail(to, subject, text, html) {
   throw lastError || new Error('All SMTP send attempts failed');
 }
 
+const classifyEmailSendFailure = (error) => {
+  const message = String(error?.message || error || '').toLowerCase();
+
+  if (!message) {
+    return 'EMAIL_SEND_FAILED';
+  }
+
+  if (message.includes('5.7.139') || message.includes('smtpclientauthentication is disabled')) {
+    return 'SMTP_AUTH_DISABLED';
+  }
+
+  if (message.includes('535') || message.includes('invalid login') || message.includes('authentication rejected')) {
+    return 'SMTP_AUTH_REJECTED';
+  }
+
+  if (message.includes('etimedout') || message.includes('timed out') || message.includes('timeout')) {
+    return 'SMTP_TIMEOUT';
+  }
+
+  if (message.includes('econnrefused')) {
+    return 'SMTP_CONN_REFUSED';
+  }
+
+  if (message.includes('enotfound') || message.includes('dns')) {
+    return 'SMTP_HOST_NOT_FOUND';
+  }
+
+  if (message.includes('resend api')) {
+    return 'RESEND_SEND_FAILED';
+  }
+
+  return 'EMAIL_SEND_FAILED';
+};
+
 async function verifyRecaptcha(token) {
   const secret = process.env.RECAPTCHA_SECRET;
   if (!secret) return true; // skip verification when secret not provided
@@ -362,7 +396,10 @@ router.post('/register', async (req, res) => {
     }
 
     if (isProductionEnv && !isEmailTransportConfigured()) {
-      return res.status(503).json({ message: 'Verification email service is temporarily unavailable. Please try again later.' });
+      return res.status(503).json({
+        message: 'Verification email service is temporarily unavailable. Please try again later.',
+        code: 'EMAIL_TRANSPORT_NOT_CONFIGURED'
+      });
     }
 
     // Check if user exists
@@ -400,12 +437,14 @@ router.post('/register', async (req, res) => {
     const verifyUrl = createVerifyUrl(verificationToken);
 
     let verificationEmailSent = false;
+    let verificationEmailErrorCode = 'EMAIL_SEND_FAILED';
 
     // Send verification email (and return token/url in non-production for dev)
     try {
       await sendEmail(user.email, 'Verify your Instrevi account', `Visit ${verifyUrl} to verify your email.`, `<p>Click <a href=\"${verifyUrl}\">here</a> to verify your email for Instrevi.</p><p>If you did not sign up, ignore this email.</p>`);
       verificationEmailSent = true;
     } catch (emailErr) {
+      verificationEmailErrorCode = classifyEmailSendFailure(emailErr);
       console.error('Failed to send verification email:', emailErr);
     }
 
@@ -416,7 +455,10 @@ router.post('/register', async (req, res) => {
         console.error('[auth] Failed to rollback user after verification email send failure:', cleanupErr?.message || cleanupErr);
       }
 
-      return res.status(503).json({ message: 'Verification email service is temporarily unavailable. Please try again later.' });
+      return res.status(503).json({
+        message: 'Verification email service is temporarily unavailable. Please try again later.',
+        code: verificationEmailErrorCode
+      });
     }
 
     const responsePayload = {
@@ -496,7 +538,10 @@ router.post('/resend-verification', async (req, res) => {
     }
 
     if (isProductionEnv && !isEmailTransportConfigured()) {
-      return res.status(503).json({ message: 'Verification email service is temporarily unavailable. Please try again later.' });
+      return res.status(503).json({
+        message: 'Verification email service is temporarily unavailable. Please try again later.',
+        code: 'EMAIL_TRANSPORT_NOT_CONFIGURED'
+      });
     }
 
     const user = await User.findOne({ email });
