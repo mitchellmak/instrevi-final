@@ -424,21 +424,21 @@ function buildVerificationEmailHtml(verifyUrl, username) {
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#F7F6FB;font-family:'Helvetica Neue',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F6FB;padding:40px 16px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F6FB;padding:16px 12px;">
     <tr><td align="center">
       <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #DDD9EA;box-shadow:0 4px 20px rgba(43,45,66,0.07);">
 
         <!-- Header -->
         <tr>
-          <td style="background:linear-gradient(165deg,#3D4563 0%,#8394BA 100%);padding:32px 40px 28px;">
-            <p style="margin:0 0 6px;color:#F4A261;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">✦ Instrevi</p>
-            <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:700;letter-spacing:-0.5px;">Welcome to Instrevi!</h1>
+          <td style="padding:18px 40px 6px;background:#ffffff;">
+            <p style="margin:0;color:#8B9DC3;font-size:30px;font-weight:700;letter-spacing:-1px;line-height:1;">Instrevi</p>
+            <h1 style="margin:10px 0 0;color:#2B2D42;font-size:25px;font-weight:700;letter-spacing:-0.4px;">Welcome to Instrevi!</h1>
           </td>
         </tr>
 
         <!-- Body -->
         <tr>
-          <td style="padding:36px 40px 28px;">
+          <td style="padding:14px 40px 28px;">
             <p style="margin:0 0 12px;font-size:17px;font-weight:600;color:#2B2D42;">Hey ${displayName}, you&rsquo;re almost in! 🎉</p>
             <p style="margin:0 0 24px;font-size:14px;color:#6F7390;line-height:1.7;">Thanks for joining our community! Just one quick step &mdash; confirm your email address so we know it&rsquo;s really you, and you&rsquo;ll be ready to start sharing your experiences.</p>
 
@@ -480,21 +480,21 @@ function buildPasswordResetEmailHtml(resetUrl) {
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#F7F6FB;font-family:'Helvetica Neue',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F6FB;padding:40px 16px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F6FB;padding:16px 12px;">
     <tr><td align="center">
       <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #DDD9EA;box-shadow:0 4px 20px rgba(43,45,66,0.07);">
 
         <!-- Header -->
         <tr>
-          <td style="background:linear-gradient(165deg,#3D4563 0%,#8394BA 100%);padding:32px 40px 28px;">
-            <p style="margin:0 0 6px;color:#F4A261;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">✦ Instrevi</p>
-            <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:700;letter-spacing:-0.5px;">Password Reset</h1>
+          <td style="padding:18px 40px 6px;background:#ffffff;">
+            <p style="margin:0;color:#8B9DC3;font-size:30px;font-weight:700;letter-spacing:-1px;line-height:1;">Instrevi</p>
+            <h1 style="margin:10px 0 0;color:#2B2D42;font-size:25px;font-weight:700;letter-spacing:-0.4px;">Password Reset</h1>
           </td>
         </tr>
 
         <!-- Body -->
         <tr>
-          <td style="padding:36px 40px 28px;">
+          <td style="padding:14px 40px 28px;">
             <p style="margin:0 0 12px;font-size:17px;font-weight:600;color:#2B2D42;">No worries, it happens to all of us!</p>
             <p style="margin:0 0 24px;font-size:14px;color:#6F7390;line-height:1.7;">We received a request to reset the password for your Instrevi account. Click the button below to choose a new one. This link is valid for <strong>1 hour</strong>.</p>
 
