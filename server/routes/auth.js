@@ -17,10 +17,34 @@ const resolveFrontendBaseUrl = () => {
     ? process.env.FRONTEND_URL.trim()
     : '';
 
-  if (!configuredValue) {
-    if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production') {
+    if (!configuredValue) {
       console.warn('[auth] FRONTEND_URL is not set in production; using https://www.instrevi.com for email links.');
+      return DEFAULT_FRONTEND_URL;
     }
+
+    try {
+      const parsed = new URL(configuredValue);
+      const parsedHost = parsed.hostname.toLowerCase();
+      const parsedPath = parsed.pathname.toLowerCase();
+      const hasSupportedProtocol = parsed.protocol === 'https:';
+      const isAllowedProductionHost = PRODUCTION_ALLOWED_FRONTEND_HOSTS.has(parsedHost);
+      const isVercelDeployHook = parsedHost === 'api.vercel.com'
+        && parsedPath.includes('/v1/integrations/deploy');
+      const isVercelDashboardDeployLink = parsedHost === 'vercel.com'
+        && parsedPath.includes('/integrations/deploy');
+
+      if (!hasSupportedProtocol || !isAllowedProductionHost || isVercelDeployHook || isVercelDashboardDeployLink) {
+        console.warn('[auth] FRONTEND_URL is invalid for production email links; forcing https://www.instrevi.com.');
+      }
+    } catch {
+      console.warn('[auth] FRONTEND_URL is malformed in production; forcing https://www.instrevi.com.');
+    }
+
+    return DEFAULT_FRONTEND_URL;
+  }
+
+  if (!configuredValue) {
     return DEFAULT_FRONTEND_URL;
   }
 
@@ -49,6 +73,7 @@ const resolveFrontendBaseUrl = () => {
 };
 
 const frontendBaseUrl = resolveFrontendBaseUrl();
+const createVerifyUrl = (token) => `${frontendBaseUrl}/verify-email?token=${encodeURIComponent(token)}`;
 const smtpHost = typeof process.env.SMTP_HOST === 'string' ? process.env.SMTP_HOST.trim() : '';
 const smtpUser = typeof process.env.SMTP_USER === 'string' ? process.env.SMTP_USER.trim() : '';
 const smtpPass = typeof process.env.SMTP_PASS === 'string' ? process.env.SMTP_PASS : '';
@@ -349,7 +374,7 @@ router.post('/register', async (req, res) => {
 
     await user.save();
 
-    const verifyUrl = `${frontendBaseUrl}/verify-email?token=${verificationToken}`;
+    const verifyUrl = createVerifyUrl(verificationToken);
 
     // Send verification email (and return token/url in non-production for dev)
     try {
@@ -451,7 +476,7 @@ router.post('/resend-verification', async (req, res) => {
     user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await user.save();
 
-    const verifyUrl = `${frontendBaseUrl}/verify-email?token=${verificationToken}`;
+    const verifyUrl = createVerifyUrl(verificationToken);
 
     try {
       await sendEmail(
