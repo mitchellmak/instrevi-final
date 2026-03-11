@@ -21,6 +21,7 @@ const CreateUnboxing: React.FC = () => {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Product');
   const [caption, setCaption] = useState('');
+  const [tags, setTags] = useState('');
   const [selectedMedia, setSelectedMedia] = useState<SelectedMediaItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -101,6 +102,7 @@ const CreateUnboxing: React.FC = () => {
       formData.append('title', title);
       formData.append('category', category);
       formData.append('caption', caption);
+      formData.append('tags', tags);
 
       const imageFiles = selectedMedia.filter((item) => item.kind === 'image').map((item) => item.file);
       const videoFiles = selectedMedia.filter((item) => item.kind === 'video').map((item) => item.file);
@@ -144,6 +146,7 @@ const CreateUnboxing: React.FC = () => {
       // Reset form
       setTitle('');
       setCaption('');
+      setTags('');
       setSelectedMedia((prev) => {
         prev.forEach((item) => {
           if (item.preview.startsWith('blob:')) {
@@ -271,6 +274,32 @@ const CreateUnboxing: React.FC = () => {
           </div>
         </div>
 
+        {/* Tags */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+            Tags
+          </label>
+          <input
+            type="text"
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            placeholder="e.g., camera, gear, sony"
+            maxLength={400}
+            style={{
+              width: '100%',
+              padding: '12px',
+              border: '1px solid #dbdbdb',
+              borderRadius: '6px',
+              fontSize: '14px',
+              boxSizing: 'border-box',
+              fontFamily: "'Poppins', sans-serif"
+            }}
+          />
+          <div style={{ fontSize: '12px', color: '#8e8e8e', marginTop: '4px' }}>
+            Separate tags with commas
+          </div>
+        </div>
+
         {/* Media Upload Section */}
         <div style={{ marginBottom: '20px' }}>
           <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '12px' }}>
@@ -291,7 +320,11 @@ const CreateUnboxing: React.FC = () => {
                 fontWeight: '500',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                fontFamily: "'Poppins', sans-serif"
+                fontFamily: "'Poppins', sans-serif",
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = '#262626';
@@ -302,7 +335,21 @@ const CreateUnboxing: React.FC = () => {
                 e.currentTarget.style.backgroundColor = 'white';
               }}
             >
-              📁 Choose Files
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              Files
             </button>
 
             <button
@@ -319,10 +366,36 @@ const CreateUnboxing: React.FC = () => {
                 fontWeight: '500',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                fontFamily: "'Poppins', sans-serif"
+                fontFamily: "'Poppins', sans-serif",
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#262626';
+                e.currentTarget.style.backgroundColor = '#f9f9f9';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#dbdbdb';
+                e.currentTarget.style.backgroundColor = 'white';
               }}
             >
-              📷 Open Camera
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+              Camera
             </button>
 
             <button
@@ -339,10 +412,36 @@ const CreateUnboxing: React.FC = () => {
                 fontWeight: '500',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                fontFamily: "'Poppins', sans-serif"
+                fontFamily: "'Poppins', sans-serif",
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#262626';
+                e.currentTarget.style.backgroundColor = '#f9f9f9';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#dbdbdb';
+                e.currentTarget.style.backgroundColor = 'white';
               }}
             >
-              🎥 Open Video Camera
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polygon points="23 7 16 12 23 17 23 7" />
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+              </svg>
+              Video
             </button>
           </div>
 
@@ -374,7 +473,7 @@ const CreateUnboxing: React.FC = () => {
           />
 
           <div style={{ fontSize: '12px', color: '#8e8e8e', marginBottom: '12px' }}>
-            Use Open Camera for photos and Open Video Camera for recording. If blocked, allow camera permission for this site.
+            Use Camera for photos and Video for recording. You can add multiple videos and photos.
           </div>
 
           {/* Media Gallery */}

@@ -77,8 +77,8 @@ code {
 
 .feed-page--snap .recent-posters-strip {
   margin-bottom: 14px;
-  border: 1px solid var(--brand-border);
-  background: #ffffff;
+  border: none;
+  background: transparent;
   border-radius: 12px;
   padding: 10px;
 }
@@ -86,7 +86,7 @@ code {
 .feed-page--snap .recent-posters-track {
   display: flex;
   align-items: flex-start;
-  gap: 16px;
+  gap: 19px;
   overflow-x: auto;
   overflow-y: visible;
   padding: 2px 2px 26px;
@@ -703,8 +703,8 @@ code {
 }
 
 .feed-mobile-action--review .feed-mobile-icon {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 22px;
 }
 
 .feed-mobile-action--review .feed-mobile-label {
@@ -717,8 +717,8 @@ code {
 }
 
 .feed-mobile-action--unbox .feed-mobile-icon {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
 }
 
 .feed-mobile-action--unbox .feed-mobile-label {
@@ -741,8 +741,8 @@ code {
 }
 
 .feed-mobile-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .feed-mobile-label {
@@ -1696,7 +1696,7 @@ code {
   }
 
   .feed-page--snap .recent-posters-track {
-    gap: 12px;
+    gap: 15px;
     padding-bottom: 22px;
   }
 

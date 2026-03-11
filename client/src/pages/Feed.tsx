@@ -70,6 +70,7 @@ const Feed: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [viewedStripPostIds, setViewedStripPostIds] = useState<string[]>([]);
   const [relationshipIds, setRelationshipIds] = useState<{ friendIds: string[]; followingIds: string[] }>({
     friendIds: [],
     followingIds: [],
@@ -106,6 +107,8 @@ const Feed: React.FC = () => {
 
   const openRecentPosterPost = (postId: string) => {
     if (!postId) return;
+
+    setViewedStripPostIds((prev) => (prev.includes(postId) ? prev : [...prev, postId]));
 
     const params = new URLSearchParams(searchParams);
     params.set('post', postId);
@@ -321,6 +324,11 @@ const Feed: React.FC = () => {
     return [...friendEntries, ...followingEntries, ...publicEntries];
   }, [friendIdSet, followingIdSet, posterAggregates, publicFollowerCounts]);
 
+  const visibleRecentPosters = useMemo(
+    () => orderedRecentPosters.filter((entry) => !viewedStripPostIds.includes(entry.latestPost._id)),
+    [orderedRecentPosters, viewedStripPostIds]
+  );
+
   const fetchPosts = async () => {
     try {
       const response = await apiFetch('/api/posts');
@@ -431,10 +439,10 @@ const Feed: React.FC = () => {
         </div>
       )}
 
-      {orderedRecentPosters.length > 0 && (
+      {visibleRecentPosters.length > 0 && (
         <div className="recent-posters-strip" aria-label="People who recently posted">
           <div className="recent-posters-track">
-            {orderedRecentPosters.map((entry) => {
+            {visibleRecentPosters.map((entry) => {
               const isUnboxing = entry.latestPost.postType === 'unboxing';
               const username = entry.user.username || 'User';
 
@@ -494,11 +502,11 @@ const Feed: React.FC = () => {
           disabled={isBanned}
           title={isBanned ? 'Banned users cannot create posts' : undefined}
         >
-          <svg className="feed-mobile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="9" y1="13" x2="15" y2="13" />
-            <line x1="9" y1="17" x2="13" y2="17" />
+          <svg className="feed-mobile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 2.5h9l3 3v16H6z" />
+            <polyline points="15 2.5 15 5.5 18 5.5" />
+            <circle cx="11.4" cy="13.2" r="4.4" />
+            <line x1="14.8" y1="16.6" x2="19.1" y2="21" />
           </svg>
           <span className="feed-mobile-label">Review</span>
         </button>
@@ -511,7 +519,7 @@ const Feed: React.FC = () => {
           disabled={isBanned}
           title={isBanned ? 'Banned users cannot create posts' : undefined}
         >
-          <svg className="feed-mobile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="feed-mobile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
             <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
             <line x1="12" y1="22.08" x2="12" y2="12" />
@@ -522,16 +530,18 @@ const Feed: React.FC = () => {
         <button
           type="button"
           className="feed-mobile-action"
-          onClick={() => navigate('/friends')}
-          aria-label="Friends and followers"
+          onClick={() => navigate('/list')}
+          aria-label="Open list page"
         >
           <svg className="feed-mobile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-            <circle cx="8.5" cy="7" r="4" />
-            <path d="M20 8v6" />
-            <path d="M23 11h-6" />
+            <line x1="8" y1="6" x2="21" y2="6" />
+            <line x1="8" y1="12" x2="21" y2="12" />
+            <line x1="8" y1="18" x2="21" y2="18" />
+            <circle cx="4" cy="6" r="1" />
+            <circle cx="4" cy="12" r="1" />
+            <circle cx="4" cy="18" r="1" />
           </svg>
-          <span className="feed-mobile-label">Friends</span>
+          <span className="feed-mobile-label">List</span>
         </button>
 
         <button

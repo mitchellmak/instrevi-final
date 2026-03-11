@@ -5,7 +5,7 @@ import SettingsLayout from '../components/SettingsLayout';
 import UserChip from '../components/UserChip';
 import { apiFetch } from '../utils/apiFetch';
 
-type FriendsTab = 'discover' | 'requests' | 'friends' | 'following' | 'followers';
+type NetworkTab = 'requests' | 'following' | 'followers';
 
 type NetworkUser = {
   id: string;
@@ -72,7 +72,8 @@ const Friends: React.FC = () => {
   const navigate = useNavigate();
   const isBanned = Boolean(user?.isBanned);
 
-  const [activeTab, setActiveTab] = useState<FriendsTab>('discover');
+  const [activeNetworkTab, setActiveNetworkTab] = useState<NetworkTab>('requests');
+  const [friendsQuery, setFriendsQuery] = useState('');
   const [discoverQuery, setDiscoverQuery] = useState('');
   const [network, setNetwork] = useState<NetworkResponse>({
     friends: [],
@@ -266,6 +267,23 @@ const Friends: React.FC = () => {
     const fullName = `${entry.firstName || ''} ${entry.lastName || ''}`.trim();
     return fullName;
   };
+
+  const filteredFriends = useMemo(() => {
+    const query = friendsQuery.trim().toLowerCase();
+
+    if (!query) {
+      return network.friends;
+    }
+
+    return network.friends.filter((entry) => {
+      const username = (entry.username || '').toLowerCase();
+      const firstName = (entry.firstName || '').toLowerCase();
+      const lastName = (entry.lastName || '').toLowerCase();
+      const fullName = `${firstName} ${lastName}`.trim();
+
+      return username.includes(query) || firstName.includes(query) || lastName.includes(query) || fullName.includes(query);
+    });
+  }, [friendsQuery, network.friends]);
 
   const renderCommonViewButton = (entry: NetworkUser) => (
     <button className="btn-secondary friend-action-btn" type="button" onClick={() => openProfile(entry.id)} disabled={!!busyByUserId[entry.id]}>
@@ -466,24 +484,6 @@ const Friends: React.FC = () => {
         <h1 className="settings-page-title">Friends</h1>
 
         <div className="card settings-page-card">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
-            <button type="button" style={tabButtonStyle(activeTab === 'discover')} onClick={() => setActiveTab('discover')}>
-              Discover
-            </button>
-            <button type="button" style={tabButtonStyle(activeTab === 'requests')} onClick={() => setActiveTab('requests')}>
-              Requests ({network.incomingFriendRequests.length})
-            </button>
-            <button type="button" style={tabButtonStyle(activeTab === 'friends')} onClick={() => setActiveTab('friends')}>
-              Friends ({network.friends.length})
-            </button>
-            <button type="button" style={tabButtonStyle(activeTab === 'following')} onClick={() => setActiveTab('following')}>
-              Following ({network.following.length})
-            </button>
-            <button type="button" style={tabButtonStyle(activeTab === 'followers')} onClick={() => setActiveTab('followers')}>
-              Followers ({network.followers.length})
-            </button>
-          </div>
-
           {error && (
             <div style={{
               marginBottom: '14px',
@@ -512,24 +512,41 @@ const Friends: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'discover' && (
-            <div style={{ marginBottom: '16px' }}>
-              <input
-                type="text"
-                value={discoverQuery}
-                onChange={(event) => setDiscoverQuery(event.target.value)}
-                placeholder="Search username, first name, or last name"
-                className="form-input"
-                style={{ marginBottom: 0 }}
-              />
-            </div>
-          )}
+          <section style={{ marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '16px', marginBottom: '8px' }}>Friends ({network.friends.length})</h3>
+            <input
+              type="text"
+              value={friendsQuery}
+              onChange={(event) => setFriendsQuery(event.target.value)}
+              placeholder="Search friends by username or name"
+              className="form-input"
+              style={{ marginBottom: '10px' }}
+            />
 
-          {(loadingNetwork || (activeTab === 'discover' && loadingDiscover)) ? (
-            <p style={{ textAlign: 'center', color: 'var(--brand-primary)', padding: '24px 0' }}>Loading...</p>
-          ) : activeTab === 'discover' ? (
-            discoverUsers.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--brand-primary)', padding: '24px 0' }}>
+            {loadingNetwork ? (
+              <p style={{ textAlign: 'center', color: 'var(--brand-primary)', padding: '18px 0' }}>Loading friends...</p>
+            ) : friendsQuery.trim() && filteredFriends.length === 0 && network.friends.length > 0 ? (
+              <p style={{ textAlign: 'center', color: 'var(--brand-primary)', padding: '18px 0' }}>No friends found for your search.</p>
+            ) : (
+              renderNetworkList(filteredFriends, 'friends')
+            )}
+          </section>
+
+          <section style={{ marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '16px', marginBottom: '8px' }}>Discover</h3>
+            <input
+              type="text"
+              value={discoverQuery}
+              onChange={(event) => setDiscoverQuery(event.target.value)}
+              placeholder="Search username, first name, or last name"
+              className="form-input"
+              style={{ marginBottom: '10px' }}
+            />
+
+            {loadingDiscover ? (
+              <p style={{ textAlign: 'center', color: 'var(--brand-primary)', padding: '18px 0' }}>Loading discover users...</p>
+            ) : discoverUsers.length === 0 ? (
+              <p style={{ textAlign: 'center', color: 'var(--brand-primary)', padding: '18px 0' }}>
                 {discoverQuery.trim() ? 'No users found for your search.' : 'No users to discover right now.'}
               </p>
             ) : (
@@ -553,16 +570,46 @@ const Friends: React.FC = () => {
                   {renderDiscoverActions(entry)}
                 </div>
               ))
-            )
-          ) : activeTab === 'requests' ? (
-            renderRequestsSection()
-          ) : activeTab === 'friends' ? (
-            renderNetworkList(network.friends, 'friends')
-          ) : activeTab === 'following' ? (
-            renderNetworkList(network.following, 'following')
-          ) : (
-            renderNetworkList(network.followers, 'followers')
-          )}
+            )}
+          </section>
+
+          <section style={{ borderTop: '1px solid var(--brand-border)', paddingTop: '14px' }}>
+            <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>Requests and Network</h3>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+              <button
+                type="button"
+                style={tabButtonStyle(activeNetworkTab === 'requests')}
+                onClick={() => setActiveNetworkTab('requests')}
+              >
+                Requests ({network.incomingFriendRequests.length})
+              </button>
+              <button
+                type="button"
+                style={tabButtonStyle(activeNetworkTab === 'following')}
+                onClick={() => setActiveNetworkTab('following')}
+              >
+                Following ({network.following.length})
+              </button>
+              <button
+                type="button"
+                style={tabButtonStyle(activeNetworkTab === 'followers')}
+                onClick={() => setActiveNetworkTab('followers')}
+              >
+                Followers ({network.followers.length})
+              </button>
+            </div>
+
+            {loadingNetwork ? (
+              <p style={{ textAlign: 'center', color: 'var(--brand-primary)', padding: '18px 0' }}>Loading network...</p>
+            ) : activeNetworkTab === 'requests' ? (
+              renderRequestsSection()
+            ) : activeNetworkTab === 'following' ? (
+              renderNetworkList(network.following, 'following')
+            ) : (
+              renderNetworkList(network.followers, 'followers')
+            )}
+          </section>
         </div>
       </div>
     </SettingsLayout>

@@ -29,6 +29,26 @@ const getEntityId = (value: unknown): string => {
   return '';
 };
 
+const normalizeTagToken = (value: string) => value.trim().replace(/^#+/, '').toLowerCase();
+
+const extractCaptionTags = (caption: string) => {
+  if (!caption || typeof caption !== 'string') return [];
+
+  const tags = new Set<string>();
+  const regex = /(^|\s)#([a-z0-9][a-z0-9_-]{0,39})/gi;
+  let match = regex.exec(caption);
+
+  while (match) {
+    const token = normalizeTagToken(match[2] || '');
+    if (token) {
+      tags.add(token);
+    }
+    match = regex.exec(caption);
+  }
+
+  return Array.from(tags);
+};
+
 const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -60,10 +80,43 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   const postUserId = getEntityId(post.user);
   const postCategory = post.category === 'Places' ? 'Establishment' : post.category;
   const formattedCaptionHtml = React.useMemo(() => formatRichTextToHtml(post.caption || ''), [post.caption]);
+  const businessDisplayName = React.useMemo(() => {
+    const businessValue = [post.shopName, post.subjectName]
+      .find((value) => typeof value === 'string' && value.trim());
+
+    return businessValue ? businessValue.trim() : '';
+  }, [post.shopName, post.subjectName]);
+  const postTagTokens = React.useMemo(() => {
+    const tags = new Set<string>();
+
+    if (Array.isArray(post.tags)) {
+      post.tags.forEach((tag) => {
+        const normalized = normalizeTagToken(String(tag || ''));
+        if (normalized) {
+          tags.add(normalized);
+        }
+      });
+    }
+
+    extractCaptionTags(post.caption || '').forEach((tag) => tags.add(tag));
+    return Array.from(tags).slice(0, 10);
+  }, [post.tags, post.caption]);
 
   const openPostUserProfile = () => {
     if (!postUserId) return;
     navigate(`/profile/${postUserId}`);
+  };
+
+  const openTagList = (tag: string) => {
+    const normalized = normalizeTagToken(tag);
+    if (!normalized) return;
+    navigate(`/list?mode=tag&value=${encodeURIComponent(normalized)}`);
+  };
+
+  const openBusinessList = (businessName: string) => {
+    const normalized = businessName.trim();
+    if (!normalized) return;
+    navigate(`/list?mode=business&value=${encodeURIComponent(normalized)}`);
   };
 
   const mediaItems = React.useMemo<PostMediaItem[]>(() => {
@@ -965,6 +1018,55 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     );
   };
 
+  const renderListFilters = () => {
+    if (!businessDisplayName && postTagTokens.length === 0) {
+      return null;
+    }
+
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+        {businessDisplayName && (
+          <button
+            type="button"
+            onClick={() => openBusinessList(businessDisplayName)}
+            style={{
+              border: '1px solid var(--brand-border)',
+              borderRadius: '999px',
+              background: '#ffffff',
+              color: 'var(--brand-accent)',
+              fontSize: '11px',
+              fontWeight: 600,
+              padding: '5px 10px',
+              cursor: 'pointer'
+            }}
+          >
+            {businessDisplayName}
+          </button>
+        )}
+
+        {postTagTokens.map((tag) => (
+          <button
+            key={tag}
+            type="button"
+            onClick={() => openTagList(tag)}
+            style={{
+              border: '1px solid var(--brand-border)',
+              borderRadius: '999px',
+              background: 'var(--brand-bg)',
+              color: 'var(--brand-accent)',
+              fontSize: '11px',
+              fontWeight: 600,
+              padding: '5px 10px',
+              cursor: 'pointer'
+            }}
+          >
+            #{tag}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
   const renderCommentsModal = () => {
     if (!isCommentsModalOpen) return null;
 
@@ -1076,6 +1178,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
               dangerouslySetInnerHTML={{ __html: formattedCaptionHtml }}
             />
           )}
+
+          {renderListFilters()}
 
           {/* Stats */}
           {post.stats && post.stats.length > 0 && (
@@ -1223,6 +1327,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
             />
           )}
 
+          {renderListFilters()}
+
           {/* Actions */}
           <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid var(--brand-border)' }}>
             <button 
@@ -1340,6 +1446,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
             <span dangerouslySetInnerHTML={{ __html: formattedCaptionHtml }} />
           </div>
         )}
+
+        {renderListFilters()}
 
         {renderCommentPreview()}
       </div>

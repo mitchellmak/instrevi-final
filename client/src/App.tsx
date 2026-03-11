@@ -22,6 +22,7 @@ import Terms from './pages/Terms';
 import TermsSettings from './pages/TermsSettings';
 import Reviews from './pages/Reviews';
 import Notifications from './pages/Notifications';
+import ListPage from './pages/List';
 
 function App() {
   return (
@@ -40,6 +41,7 @@ function App() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/reviews" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+        <Route path="/list" element={<ProtectedRoute><ListPage /></ProtectedRoute>} />
         <Route path="/profile/:userId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
         <Route path="/create/review" element={<ProtectedRoute><CreateReview /></ProtectedRoute>} />

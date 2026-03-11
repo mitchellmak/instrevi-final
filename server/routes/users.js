@@ -1,6 +1,8 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Post = require('../models/Post');
+const Notification = require('../models/Notification');
 const auth = require('../middleware/auth');
 const requireNotBanned = require('../middleware/requireNotBanned');
 const upload = require('../middleware/upload');
@@ -165,6 +167,81 @@ router.get('/discover', auth, async (req, res) => {
     res.json({ users: results });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.delete('/account', auth, async (req, res) => {
+  try {
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    const confirmText = typeof req.body?.confirmText === 'string'
+      ? req.body.confirmText.trim().toUpperCase()
+      : '';
+
+    if (!password) {
+      return res.status(400).json({ message: 'Password is required to delete your account' });
+    }
+
+    if (confirmText !== 'DELETE') {
+      return res.status(400).json({ message: 'Please type DELETE to confirm account deletion' });
+    }
+
+    const user = await User.findById(req.user.userId).select('password');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(400).json({ message: 'Incorrect password' });
+    }
+
+    const userId = user._id;
+
+    await Post.deleteMany({ user: userId });
+
+    await Promise.all([
+      Post.updateMany(
+        {
+          $or: [
+            { likes: userId },
+            { 'comments.user': userId }
+          ]
+        },
+        {
+          $pull: {
+            likes: userId,
+            comments: { user: userId }
+          }
+        }
+      ),
+      User.updateMany(
+        { _id: { $ne: userId } },
+        {
+          $pull: {
+            followers: userId,
+            following: userId,
+            friends: userId,
+            friendRequestsSent: userId,
+            friendRequestsReceived: userId
+          }
+        }
+      ),
+      Notification.deleteMany({
+        $or: [
+          { recipient: userId },
+          { actor: userId }
+        ]
+      })
+    ]);
+
+    await User.deleteOne({ _id: userId });
+
+    return res.json({ message: 'Account deleted successfully' });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    return res.status(500).json({ message: 'Server error' });
   }
 });
 
