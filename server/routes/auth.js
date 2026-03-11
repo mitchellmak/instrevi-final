@@ -414,6 +414,123 @@ async function verifyRecaptcha(token) {
 }
 
 
+// ---------------------------------------------------------------------------
+// Email template helpers
+// ---------------------------------------------------------------------------
+function buildVerificationEmailHtml(verifyUrl, username) {
+  const displayName = username ? username : 'there';
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F7F6FB;font-family:'Helvetica Neue',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F6FB;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #DDD9EA;box-shadow:0 4px 20px rgba(43,45,66,0.07);">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(165deg,#3D4563 0%,#8394BA 100%);padding:32px 40px 28px;">
+            <p style="margin:0 0 6px;color:#F4A261;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">✦ Instrevi</p>
+            <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:700;letter-spacing:-0.5px;">Welcome to Instrevi!</h1>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:36px 40px 28px;">
+            <p style="margin:0 0 12px;font-size:17px;font-weight:600;color:#2B2D42;">Hey ${displayName}, you&rsquo;re almost in! 🎉</p>
+            <p style="margin:0 0 24px;font-size:14px;color:#6F7390;line-height:1.7;">Thanks for joining our community! Just one quick step &mdash; confirm your email address so we know it&rsquo;s really you, and you&rsquo;ll be ready to start sharing your experiences.</p>
+
+            <!-- CTA Button -->
+            <table cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+              <tr>
+                <td style="background:#F4A261;border-radius:8px;">
+                  <a href="${verifyUrl}" style="display:inline-block;padding:14px 34px;font-size:15px;font-weight:700;color:#2B2D42;text-decoration:none;letter-spacing:0.2px;">Verify My Email &rarr;</a>
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:0;font-size:13px;color:#8B9DC3;line-height:1.6;">This link expires in <strong>24 hours</strong>. If you didn&rsquo;t create an account, you can safely ignore this email &mdash; no action needed.</p>
+          </td>
+        </tr>
+
+        <!-- Divider -->
+        <tr><td style="padding:0 40px;"><div style="border-top:1px solid #DDD9EA;"></div></td></tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:20px 40px;background:#F7F6FB;border-radius:0 0 14px 14px;">
+            <p style="margin:0;font-size:11px;color:#8B9DC3;line-height:1.7;">Having trouble with the button? Copy and paste this link into your browser:<br>
+              <a href="${verifyUrl}" style="color:#3D4563;word-break:break-all;">${verifyUrl}</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+function buildPasswordResetEmailHtml(resetUrl) {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F7F6FB;font-family:'Helvetica Neue',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F6FB;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #DDD9EA;box-shadow:0 4px 20px rgba(43,45,66,0.07);">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(165deg,#3D4563 0%,#8394BA 100%);padding:32px 40px 28px;">
+            <p style="margin:0 0 6px;color:#F4A261;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">✦ Instrevi</p>
+            <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:700;letter-spacing:-0.5px;">Password Reset</h1>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:36px 40px 28px;">
+            <p style="margin:0 0 12px;font-size:17px;font-weight:600;color:#2B2D42;">No worries, it happens to all of us!</p>
+            <p style="margin:0 0 24px;font-size:14px;color:#6F7390;line-height:1.7;">We received a request to reset the password for your Instrevi account. Click the button below to choose a new one. This link is valid for <strong>1 hour</strong>.</p>
+
+            <!-- CTA Button -->
+            <table cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+              <tr>
+                <td style="background:#F4A261;border-radius:8px;">
+                  <a href="${resetUrl}" style="display:inline-block;padding:14px 34px;font-size:15px;font-weight:700;color:#2B2D42;text-decoration:none;letter-spacing:0.2px;">Reset My Password &rarr;</a>
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:0;font-size:13px;color:#8B9DC3;line-height:1.6;">If you didn&rsquo;t request a password reset, just ignore this email &mdash; your password will stay the same and your account is safe.</p>
+          </td>
+        </tr>
+
+        <!-- Divider -->
+        <tr><td style="padding:0 40px;"><div style="border-top:1px solid #DDD9EA;"></div></td></tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:20px 40px;background:#F7F6FB;border-radius:0 0 14px 14px;">
+            <p style="margin:0;font-size:11px;color:#8B9DC3;line-height:1.7;">Having trouble with the button? Copy and paste this link into your browser:<br>
+              <a href="${resetUrl}" style="color:#3D4563;word-break:break-all;">${resetUrl}</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+// ---------------------------------------------------------------------------
+
 // Register (now supports name fields and email verification token)
 router.post('/register', async (req, res) => {
   try {
@@ -479,7 +596,7 @@ router.post('/register', async (req, res) => {
 
     // Send verification email (and return token/url in non-production for dev)
     try {
-      await sendEmail(user.email, 'Verify your Instrevi account', `Visit ${verifyUrl} to verify your email.`, `<p>Click <a href=\"${verifyUrl}\">here</a> to verify your email for Instrevi.</p><p>If you did not sign up, ignore this email.</p>`);
+      await sendEmail(user.email, 'Verify your Instrevi account', `Visit ${verifyUrl} to verify your email.`, buildVerificationEmailHtml(verifyUrl, user.username));
       verificationEmailSent = true;
     } catch (emailErr) {
       verificationEmailErrorCode = classifyEmailSendFailure(emailErr);
@@ -606,7 +723,7 @@ router.post('/resend-verification', async (req, res) => {
         email,
         'Verify your Instrevi account',
         `Visit ${verifyUrl} to verify your email.`,
-        `<p>Click <a href=\"${verifyUrl}\">here</a> to verify your email for Instrevi.</p><p>If you did not sign up, ignore this email.</p>`
+        buildVerificationEmailHtml(verifyUrl, user.username)
       );
     } catch (emailErr) {
       console.error(`[auth] Failed to send verification email to ${maskEmail(email)}:`, emailErr?.message || emailErr);
@@ -647,7 +764,7 @@ router.post('/forgot-password', async (req, res) => {
     const resetUrl = `${frontendBaseUrl}/reset-password?token=${resetToken}`;
 
     try {
-      await sendEmail(email, 'Instrevi password reset', `Visit ${resetUrl} to reset your password.`, `<p>Click <a href=\"${resetUrl}\">here</a> to reset your password for Instrevi.</p>`);
+      await sendEmail(email, 'Reset your Instrevi password', `Visit ${resetUrl} to reset your password.`, buildPasswordResetEmailHtml(resetUrl));
     } catch (emailErr) {
       console.error(`[auth] Failed to send reset email to ${maskEmail(email)}:`, emailErr?.message || emailErr);
     }
