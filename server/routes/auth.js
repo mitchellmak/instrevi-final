@@ -173,6 +173,8 @@ const smtpTransports = canSendSmtp
     transporter: createSmtpTransporter(host, port)
   })))
   : [];
+const isProductionEnv = process.env.NODE_ENV === 'production';
+const isEmailTransportConfigured = () => smtpTransports.length > 0 || hasResendConfigured;
 
 if (process.env.NODE_ENV !== 'test') {
   if (!isSmtpConfigured) {
@@ -342,6 +344,10 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'You must accept the Terms & Conditions' });
     }
 
+    if (isProductionEnv && !isEmailTransportConfigured()) {
+      return res.status(503).json({ message: 'Verification email service is temporarily unavailable. Please try again later.' });
+    }
+
     // Check if user exists
     const existingUser = await User.findOne({
       $or: [{ email }, { username }]
@@ -376,11 +382,24 @@ router.post('/register', async (req, res) => {
 
     const verifyUrl = createVerifyUrl(verificationToken);
 
+    let verificationEmailSent = false;
+
     // Send verification email (and return token/url in non-production for dev)
     try {
       await sendEmail(user.email, 'Verify your Instrevi account', `Visit ${verifyUrl} to verify your email.`, `<p>Click <a href=\"${verifyUrl}\">here</a> to verify your email for Instrevi.</p><p>If you did not sign up, ignore this email.</p>`);
+      verificationEmailSent = true;
     } catch (emailErr) {
       console.error('Failed to send verification email:', emailErr);
+    }
+
+    if (isProductionEnv && !verificationEmailSent) {
+      try {
+        await User.deleteOne({ _id: user._id });
+      } catch (cleanupErr) {
+        console.error('[auth] Failed to rollback user after verification email send failure:', cleanupErr?.message || cleanupErr);
+      }
+
+      return res.status(503).json({ message: 'Verification email service is temporarily unavailable. Please try again later.' });
     }
 
     const responsePayload = {
@@ -457,6 +476,10 @@ router.post('/resend-verification', async (req, res) => {
 
     if (!email) {
       return res.status(400).json({ message: 'Email is required' });
+    }
+
+    if (isProductionEnv && !isEmailTransportConfigured()) {
+      return res.status(503).json({ message: 'Verification email service is temporarily unavailable. Please try again later.' });
     }
 
     const user = await User.findOne({ email });

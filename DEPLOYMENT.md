@@ -52,6 +52,7 @@ Important:
 - `FRONTEND_URL` must be your public app domain (for example `https://www.instrevi.com`).
 - Do not use Vercel deploy hook or dashboard URLs in `FRONTEND_URL`.
 - Production verification emails are pinned to `https://www.instrevi.com` for safety.
+- If SMTP/Resend is not configured in production, signup/resend now returns `503` instead of silently skipping email delivery.
 
 ## 🔐 Security Note
 - Do not store real secrets in the repository.
