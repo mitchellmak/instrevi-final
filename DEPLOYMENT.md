@@ -38,6 +38,15 @@
 - CLOUDINARY_API_KEY: `<your_cloudinary_api_key>`
 - CLOUDINARY_API_SECRET: `<your_cloudinary_api_secret>`
 - FRONTEND_URL: `https://www.instrevi.com`
+- SMTP_HOST: `<smtp_host>`
+- SMTP_PORT: `<465_or_587>`
+- SMTP_USER: `<smtp_username>`
+- SMTP_PASS: `<smtp_password>`
+- SMTP_FROM: `Instrevi <no-reply@instrevi.com>`
+- RESEND_API_KEY: `<optional_resend_key>`
+- RESEND_FROM: `<optional_resend_from_address>`
+- EMAIL_PROVIDER: `<optional: smtp or resend>`
+- BLOCK_UNVERIFIED_LOGIN: `true`
 
 ## 🔐 Security Note
 - Do not store real secrets in the repository.

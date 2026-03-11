@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 
 const router = express.Router();
 const DEFAULT_FRONTEND_URL = process.env.NODE_ENV === 'production'
@@ -103,6 +104,9 @@ const maskEmail = (value) => {
 
   return `${maskedLocalPart}@${domainPart}`;
 };
+
+const createRandomToken = () => crypto.randomBytes(32).toString('hex');
+const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 const createSmtpTransporter = (host, port) => {
   const secure = port === 465;
@@ -319,8 +323,9 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // create email verification token (dev-friendly)
-    const verificationToken = require('crypto').randomBytes(20).toString('hex');
-    const verificationExpires = Date.now() + 24 * 60 * 60 * 1000; // 24h
+    const verificationToken = createRandomToken();
+    const verificationTokenHash = hashToken(verificationToken);
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
     // Create user
     const user = new User({
@@ -331,18 +336,11 @@ router.post('/register', async (req, res) => {
       email,
       password: hashedPassword,
       emailVerified: false,
-      emailVerificationToken: verificationToken,
+      emailVerificationToken: verificationTokenHash,
       emailVerificationExpires: verificationExpires
     });
 
     await user.save();
-
-    // Create JWT token
-    const token = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET || 'fallback_secret',
-      { expiresIn: '7d' }
-    );
 
     const verifyUrl = `${frontendBaseUrl}/verify-email?token=${verificationToken}`;
 
@@ -354,16 +352,29 @@ router.post('/register', async (req, res) => {
     }
 
     const responsePayload = {
-      token,
       user: {
         id: user._id,
         username: user.username,
         email: user.email,
+        emailVerified: user.emailVerified || false,
         profilePicture: user.profilePicture,
         isAdmin: user.isAdmin || false,
         isBanned: user.isBanned || false
       }
     };
+
+    const blockUnverifiedLogin = process.env.BLOCK_UNVERIFIED_LOGIN === 'true';
+    const canIssueAuthToken = !blockUnverifiedLogin || user.emailVerified;
+
+    if (canIssueAuthToken) {
+      responsePayload.token = jwt.sign(
+        { userId: user._id },
+        process.env.JWT_SECRET || 'fallback_secret',
+        { expiresIn: '7d' }
+      );
+    } else {
+      responsePayload.requiresEmailVerification = true;
+    }
 
     if (process.env.NODE_ENV !== 'production') {
       responsePayload.verificationToken = verificationToken;
@@ -380,10 +391,19 @@ router.post('/register', async (req, res) => {
 // Verify email
 router.post('/verify-email', async (req, res) => {
   try {
-    const { token } = req.body;
+    const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+
+    if (!token) {
+      return res.status(400).json({ message: 'Verification token is required' });
+    }
+
+    const tokenHash = hashToken(token);
     const user = await User.findOne({
-      emailVerificationToken: token,
-      emailVerificationExpires: { $gt: Date.now() }
+      emailVerificationExpires: { $gt: new Date() },
+      $or: [
+        { emailVerificationToken: tokenHash },
+        { emailVerificationToken: token }
+      ]
     });
 
     if (!user) return res.status(400).json({ message: 'Invalid or expired token' });
@@ -419,9 +439,9 @@ router.post('/resend-verification', async (req, res) => {
       return res.status(200).json({ message: 'If that email exists, verification instructions were sent.' });
     }
 
-    const verificationToken = require('crypto').randomBytes(20).toString('hex');
-    user.emailVerificationToken = verificationToken;
-    user.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000;
+    const verificationToken = createRandomToken();
+    user.emailVerificationToken = hashToken(verificationToken);
+    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await user.save();
 
     const verifyUrl = `${frontendBaseUrl}/verify-email?token=${verificationToken}`;
@@ -463,9 +483,9 @@ router.post('/forgot-password', async (req, res) => {
       return res.status(200).json({ message: 'If that email exists you will receive reset instructions' });
     }
 
-    const resetToken = require('crypto').randomBytes(20).toString('hex');
-    user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
+    const resetToken = createRandomToken();
+    user.resetPasswordToken = hashToken(resetToken);
+    user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     await user.save();
 
     // Send reset email and (in dev) return token in response for convenience
@@ -492,10 +512,20 @@ router.post('/forgot-password', async (req, res) => {
 // Reset password
 router.post('/reset-password', async (req, res) => {
   try {
-    const { token, password } = req.body;
+    const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+    if (!token || !password) {
+      return res.status(400).json({ message: 'Token and password are required' });
+    }
+
+    const tokenHash = hashToken(token);
     const user = await User.findOne({
-      resetPasswordToken: token,
-      resetPasswordExpires: { $gt: Date.now() }
+      resetPasswordExpires: { $gt: new Date() },
+      $or: [
+        { resetPasswordToken: tokenHash },
+        { resetPasswordToken: token }
+      ]
     });
 
     if (!user) return res.status(400).json({ message: 'Invalid or expired token' });
@@ -515,8 +545,14 @@ router.post('/reset-password', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password, recaptchaToken } = req.body;
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    const recaptchaToken = req.body?.recaptchaToken;
     const recaptchaRequired = process.env.RECAPTCHA_REQUIRED === 'true';
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
 
     // reCAPTCHA can be enforced with RECAPTCHA_REQUIRED=true.
     // If only RECAPTCHA_SECRET is set, verification is optional and only runs when token is provided.
@@ -535,15 +571,15 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Block login until email verified (configurable by env)
-    if (process.env.BLOCK_UNVERIFIED_LOGIN === 'true' && !user.emailVerified) {
-      return res.status(403).json({ message: 'Email not verified', code: 'EMAIL_NOT_VERIFIED' });
-    }
-
     // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    // Block login until email verified (configurable by env)
+    if (process.env.BLOCK_UNVERIFIED_LOGIN === 'true' && !user.emailVerified) {
+      return res.status(403).json({ message: 'Email not verified', code: 'EMAIL_NOT_VERIFIED' });
     }
 
     // Create token

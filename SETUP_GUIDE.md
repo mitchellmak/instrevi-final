@@ -43,7 +43,7 @@ cp .env.example .env
 
 2. Edit the `.env` file with your configuration:
 
-### Required Environment Variables:
+### Required Environment Variables (Core):
 
 ```env
 MONGODB_URI=mongodb://localhost:27017/instrevi
@@ -52,6 +52,54 @@ CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
 CLOUDINARY_API_KEY=your_cloudinary_api_key  
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 PORT=5000
+FRONTEND_URL=http://localhost:3000
+BLOCK_UNVERIFIED_LOGIN=true
+```
+
+### Email Verification / Delivery Variables:
+
+Use SMTP at minimum for verification and password-reset emails:
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=465
+SMTP_USER=no-reply@example.com
+SMTP_PASS=replace_with_smtp_password
+SMTP_FROM="Instrevi <no-reply@example.com>"
+SMTP_CONNECTION_TIMEOUT_MS=8000
+SMTP_GREETING_TIMEOUT_MS=8000
+SMTP_SOCKET_TIMEOUT_MS=15000
+```
+
+Optional Resend integration (fallback by default):
+
+```env
+RESEND_API_KEY=
+RESEND_FROM=
+EMAIL_PROVIDER=
+```
+
+- Keep `EMAIL_PROVIDER` empty to use SMTP first with Resend fallback.
+- Set `EMAIL_PROVIDER=smtp` to force SMTP as primary transport.
+- Set `EMAIL_PROVIDER=resend` to make Resend primary.
+
+Optional captcha controls:
+
+```env
+RECAPTCHA_SECRET=
+RECAPTCHA_REQUIRED=false
+```
+
+Quick SMTP verification command:
+
+```bash
+npm --prefix server run smtp:test
+```
+
+Send a real test email (optional):
+
+```bash
+npm --prefix server run smtp:test -- you@example.com
 ```
 
 ### Getting Your Credentials:
@@ -147,6 +195,10 @@ npm run build
 ### Authentication Endpoints:
 - `POST /api/auth/register` - Create new user
 - `POST /api/auth/login` - Login user
+- `POST /api/auth/verify-email` - Verify email token
+- `POST /api/auth/resend-verification` - Resend verification email
+- `POST /api/auth/forgot-password` - Request password reset
+- `POST /api/auth/reset-password` - Complete password reset
 
 ### Post Endpoints:
 - `GET /api/posts` - Get all posts

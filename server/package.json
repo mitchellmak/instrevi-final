@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "smtp:test": "node scripts/test-smtp.js",
     "seed:strip-posts": "node scripts/seed-strip-posts.js",
     "seed:strip-avatars": "node scripts/seed-strip-avatars.js",
     "seed:strip-cleanup": "node scripts/cleanup-strip-seed.js"

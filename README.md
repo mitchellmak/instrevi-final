@@ -5,6 +5,7 @@ A full-stack Instagram clone built with React, Node.js, and MongoDB.
 ## Features
 
 - User authentication (signup/login)
+- Email verification and resend flow
 - Photo upload and sharing
 - User profiles
 - Feed with posts from followed users
@@ -67,6 +68,10 @@ This will start both the backend server (port 5000) and frontend dev server (por
 ### Authentication
 - `POST /api/auth/register` - Register a new user
 - `POST /api/auth/login` - Login user
+- `POST /api/auth/verify-email` - Verify account email
+- `POST /api/auth/resend-verification` - Resend verification email
+- `POST /api/auth/forgot-password` - Request reset link
+- `POST /api/auth/reset-password` - Reset password with token
 
 ### Posts
 - `GET /api/posts` - Get all posts
