@@ -40,6 +40,7 @@
 - FRONTEND_URL: `https://www.instrevi.com`
 - SMTP_HOST: `<smtp_host>`
 - SMTP_PORT: `<465_or_587>`
+- SMTP_DNS_FAMILY: `<optional: 4 or 6; leave unset for auto>`
 - SMTP_USER: `<smtp_username>`
 - SMTP_PASS: `<smtp_password>`
 - SMTP_FROM: `Instrevi <<same_as_smtp_user>>`

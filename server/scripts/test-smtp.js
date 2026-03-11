@@ -25,6 +25,10 @@ const smtpFrom = typeof process.env.SMTP_FROM === 'string' && process.env.SMTP_F
   ? process.env.SMTP_FROM.trim()
   : (smtpUser || 'no-reply@instrevi.com');
 const configuredPort = Number(process.env.SMTP_PORT) || 465;
+const configuredSmtpDnsFamily = Number(process.env.SMTP_DNS_FAMILY);
+const smtpDnsFamily = configuredSmtpDnsFamily === 4 || configuredSmtpDnsFamily === 6
+  ? configuredSmtpDnsFamily
+  : null;
 
 const recipient = typeof process.argv[2] === 'string' ? process.argv[2].trim() : '';
 
@@ -64,7 +68,7 @@ const createTransport = (port) => {
     port,
     secure,
     requireTLS: !secure,
-    family: 4,
+    ...(smtpDnsFamily ? { family: smtpDnsFamily } : {}),
     connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS) || 8000,
     greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS) || 8000,
     socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS) || 15000,
@@ -84,7 +88,7 @@ const createTransport = (port) => {
 (async () => {
   let lastError = null;
 
-  console.log(`[smtp:test] host=${smtpHost} ports=${ports.join(',')} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
+  console.log(`[smtp:test] host=${smtpHost} ports=${ports.join(',')} family=${smtpDnsFamily || 'auto'} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
   if (hasSmtpAuth) {
     console.log(`[smtp:test] user=${maskEmail(smtpUser)}`);
   }

@@ -108,6 +108,10 @@ const resendFromAddress = (() => {
   return smtpFrom || smtpUser || 'no-reply@instrevi.com';
 })();
 const configuredSmtpPort = Number(process.env.SMTP_PORT) || 465;
+const configuredSmtpDnsFamily = Number(process.env.SMTP_DNS_FAMILY);
+const smtpDnsFamily = configuredSmtpDnsFamily === 4 || configuredSmtpDnsFamily === 6
+  ? configuredSmtpDnsFamily
+  : null;
 const hasSmtpAuth = Boolean(smtpUser && smtpPass);
 const hasPartialSmtpAuth = Boolean(smtpUser || smtpPass) && !hasSmtpAuth;
 const isSmtpConfigured = Boolean(smtpHost);
@@ -165,7 +169,7 @@ const createSmtpTransporter = (host, port) => {
   port,
   secure,
   requireTLS: !secure,
-  family: 4,
+  ...(smtpDnsFamily ? { family: smtpDnsFamily } : {}),
   connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS) || 8000,
   greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS) || 8000,
   socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS) || 15000,
@@ -201,10 +205,10 @@ if (process.env.NODE_ENV !== 'test') {
   } else if (smtpTransports.length === 0) {
     console.warn('[auth] SMTP has no usable transports configured.');
   } else if (useResendAsPrimary) {
-    console.log(`[auth] SMTP config loaded. hosts=${smtpHosts.join(', ')} ports=${smtpPorts.join(', ')} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
+    console.log(`[auth] SMTP config loaded. hosts=${smtpHosts.join(', ')} ports=${smtpPorts.join(', ')} family=${smtpDnsFamily || 'auto'} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
     console.log('[auth] SMTP verification skipped because Resend is configured as primary transport.');
   } else {
-    console.log(`[auth] SMTP config loaded. hosts=${smtpHosts.join(', ')} ports=${smtpPorts.join(', ')} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
+    console.log(`[auth] SMTP config loaded. hosts=${smtpHosts.join(', ')} ports=${smtpPorts.join(', ')} family=${smtpDnsFamily || 'auto'} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
     (async () => {
       let verified = false;
 
