@@ -71,17 +71,17 @@ SMTP_GREETING_TIMEOUT_MS=8000
 SMTP_SOCKET_TIMEOUT_MS=15000
 ```
 
-Optional Resend integration (fallback by default):
+Optional Resend integration (recommended when SMTP is restricted):
 
 ```env
 RESEND_API_KEY=
 RESEND_FROM=
-EMAIL_PROVIDER=
+EMAIL_PROVIDER=resend
 ```
 
-- Keep `EMAIL_PROVIDER` empty to use SMTP first with Resend fallback.
-- Set `EMAIL_PROVIDER=smtp` to force SMTP as primary transport.
-- Set `EMAIL_PROVIDER=resend` to make Resend primary.
+- Set `EMAIL_PROVIDER=resend` to use Resend only (no SMTP fallback).
+- Set `EMAIL_PROVIDER=smtp` to prioritize SMTP first with Resend fallback.
+- Keep `EMAIL_PROVIDER` empty for auto mode.
 
 Optional captcha controls:
 

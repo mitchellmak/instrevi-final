@@ -97,7 +97,14 @@ const smtpPass = normalizeSmtpCredential(process.env.SMTP_PASS);
 const resendApiKey = typeof process.env.RESEND_API_KEY === 'string' ? process.env.RESEND_API_KEY.trim() : '';
 const hasResendConfigured = Boolean(resendApiKey);
 const resendApiUrl = 'https://api.resend.com/emails';
-const useResendAsPrimary = hasResendConfigured && process.env.EMAIL_PROVIDER !== 'smtp';
+const configuredEmailProvider = typeof process.env.EMAIL_PROVIDER === 'string'
+  ? process.env.EMAIL_PROVIDER.trim().toLowerCase()
+  : '';
+const emailProviderMode = configuredEmailProvider === 'smtp' || configuredEmailProvider === 'resend'
+  ? configuredEmailProvider
+  : 'auto';
+const useResendAsPrimary = hasResendConfigured && emailProviderMode !== 'smtp';
+const useResendOnly = emailProviderMode === 'resend';
 const resendFromAddress = (() => {
   const configuredFrom = typeof process.env.RESEND_FROM === 'string' ? process.env.RESEND_FROM.trim() : '';
   if (configuredFrom) {
@@ -195,43 +202,62 @@ const smtpTransports = canSendSmtp
   })))
   : [];
 const isProductionEnv = process.env.NODE_ENV === 'production';
-const isEmailTransportConfigured = () => smtpTransports.length > 0 || hasResendConfigured;
+const isEmailTransportConfigured = () => {
+  if (emailProviderMode === 'resend') {
+    return hasResendConfigured;
+  }
+
+  if (emailProviderMode === 'smtp') {
+    return smtpTransports.length > 0;
+  }
+
+  return smtpTransports.length > 0 || hasResendConfigured;
+};
 
 if (process.env.NODE_ENV !== 'test') {
-  if (!isSmtpConfigured) {
-    console.warn('[auth] SMTP disabled. Missing env vars: SMTP_HOST');
-  } else if (hasPartialSmtpAuth) {
-    console.warn('[auth] SMTP auth is partially configured. Set both SMTP_USER and SMTP_PASS, or neither for host-only SMTP.');
-  } else if (smtpTransports.length === 0) {
-    console.warn('[auth] SMTP has no usable transports configured.');
-  } else if (useResendAsPrimary) {
-    console.log(`[auth] SMTP config loaded. hosts=${smtpHosts.join(', ')} ports=${smtpPorts.join(', ')} family=${smtpDnsFamily || 'auto'} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
-    console.log('[auth] SMTP verification skipped because Resend is configured as primary transport.');
-  } else {
-    console.log(`[auth] SMTP config loaded. hosts=${smtpHosts.join(', ')} ports=${smtpPorts.join(', ')} family=${smtpDnsFamily || 'auto'} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
-    (async () => {
-      let verified = false;
+  if (!useResendOnly) {
+    if (!isSmtpConfigured) {
+      console.warn('[auth] SMTP disabled. Missing env vars: SMTP_HOST');
+    } else if (hasPartialSmtpAuth) {
+      console.warn('[auth] SMTP auth is partially configured. Set both SMTP_USER and SMTP_PASS, or neither for host-only SMTP.');
+    } else if (smtpTransports.length === 0) {
+      console.warn('[auth] SMTP has no usable transports configured.');
+    } else if (useResendAsPrimary) {
+      console.log(`[auth] SMTP config loaded. hosts=${smtpHosts.join(', ')} ports=${smtpPorts.join(', ')} family=${smtpDnsFamily || 'auto'} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
+      console.log('[auth] SMTP verification skipped because Resend is configured as primary transport.');
+    } else {
+      console.log(`[auth] SMTP config loaded. hosts=${smtpHosts.join(', ')} ports=${smtpPorts.join(', ')} family=${smtpDnsFamily || 'auto'} auth=${hasSmtpAuth ? 'enabled' : 'disabled'}`);
+      (async () => {
+        let verified = false;
 
-      for (const entry of smtpTransports) {
-        try {
-          await entry.transporter.verify();
-          console.log(`[auth] SMTP connection verified via ${entry.label}`);
-          verified = true;
-          break;
-        } catch (smtpError) {
-          console.error(`[auth] SMTP verification failed via ${entry.label}:`, smtpError?.message || 'Unknown SMTP error');
+        for (const entry of smtpTransports) {
+          try {
+            await entry.transporter.verify();
+            console.log(`[auth] SMTP connection verified via ${entry.label}`);
+            verified = true;
+            break;
+          } catch (smtpError) {
+            console.error(`[auth] SMTP verification failed via ${entry.label}:`, smtpError?.message || 'Unknown SMTP error');
+          }
         }
-      }
 
-      if (!verified) {
-        console.error('[auth] SMTP verification failed for all configured hosts');
-      }
-    })();
+        if (!verified) {
+          console.error('[auth] SMTP verification failed for all configured hosts');
+        }
+      })();
+    }
+  } else if (hasResendConfigured) {
+    console.log('[auth] SMTP checks skipped because EMAIL_PROVIDER is set to resend.');
+  } else {
+    console.error('[auth] EMAIL_PROVIDER is set to resend but RESEND_API_KEY is missing.');
   }
 
   if (hasResendConfigured) {
     console.log('[auth] Resend API fallback is enabled.');
-    console.log(`[auth] Email transport priority: ${useResendAsPrimary ? 'Resend first, SMTP fallback' : 'SMTP first, Resend fallback'}`);
+    const transportPriority = useResendOnly
+      ? 'Resend only'
+      : (useResendAsPrimary ? 'Resend first, SMTP fallback' : 'SMTP first, Resend fallback');
+    console.log(`[auth] Email transport priority: ${transportPriority}`);
   } else {
     console.log('[auth] Resend API fallback is disabled.');
   }
@@ -267,8 +293,8 @@ async function sendViaResendApi(to, subject, text, html) {
 
 async function sendEmail(to, subject, text, html) {
   if (!smtpTransports.length && !hasResendConfigured) {
-    console.warn(`[auth] SMTP not configured — skipping sendEmail to ${maskEmail(to)}`);
-    return;
+    console.warn(`[auth] Email transport not configured — cannot send email to ${maskEmail(to)}`);
+    throw new Error('No email transport is configured');
   }
 
   const fromAddress = process.env.SMTP_FROM || smtpUser || 'no-reply@instrevi.com';
@@ -295,6 +321,10 @@ async function sendEmail(to, subject, text, html) {
     const resendSucceeded = await attemptResend();
     if (resendSucceeded) {
       return;
+    }
+
+    if (useResendOnly) {
+      throw lastError || new Error('Resend send failed');
     }
   }
 
@@ -333,6 +363,10 @@ const classifyEmailSendFailure = (error) => {
 
   if (!message) {
     return 'EMAIL_SEND_FAILED';
+  }
+
+  if (message.includes('no email transport is configured')) {
+    return 'EMAIL_TRANSPORT_NOT_CONFIGURED';
   }
 
   if (message.includes('5.7.139') || message.includes('smtpclientauthentication is disabled')) {

@@ -55,6 +55,10 @@ Important:
 - Production verification emails are pinned to `https://www.instrevi.com` for safety.
 - If SMTP/Resend is not configured in production, signup/resend now returns `503` instead of silently skipping email delivery.
 - In Render, paste `SMTP_USER` and `SMTP_PASS` as raw values (no surrounding quotes and no extra spaces).
+- Resend-only quick switch (recommended when SMTP is timing out):
+	- Set `RESEND_API_KEY` and `RESEND_FROM`
+	- Set `EMAIL_PROVIDER=resend`
+	- Redeploy the backend service
 
 ## 🔐 Security Note
 - Do not store real secrets in the repository.
