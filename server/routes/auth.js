@@ -432,15 +432,16 @@ function buildVerificationEmailHtml(verifyUrl, username) {
         <tr>
           <td style="padding:18px 40px 6px;background:#ffffff;">
             <p style="margin:0;color:#8B9DC3;font-size:30px;font-weight:700;letter-spacing:-1px;line-height:1;">Instrevi</p>
-            <h1 style="margin:10px 0 0;color:#2B2D42;font-size:25px;font-weight:700;letter-spacing:-0.4px;">Welcome to Instrevi!</h1>
           </td>
         </tr>
 
         <!-- Body -->
         <tr>
           <td style="padding:14px 40px 28px;">
-            <p style="margin:0 0 12px;font-size:17px;font-weight:600;color:#2B2D42;">Hey ${displayName}, you&rsquo;re almost in! 🎉</p>
-            <p style="margin:0 0 24px;font-size:14px;color:#6F7390;line-height:1.7;">Thanks for joining our community! Just one quick step &mdash; confirm your email address so we know it&rsquo;s really you, and you&rsquo;ll be ready to start sharing your experiences.</p>
+            <p style="margin:0 0 12px;font-size:17px;font-weight:600;color:#2B2D42;">Hi ${displayName},</p>
+            <p style="margin:0 0 16px;font-size:14px;color:#6F7390;line-height:1.7;">Thanks for joining Instrevi &mdash; we&rsquo;re genuinely excited to have you here. This is your corner of the internet to speak up, share what&rsquo;s real, spotlight the wins worth cheering for, and call out the moments that deserve better. Your voice adds something special, and we&rsquo;re glad it&rsquo;s now part of the mix.</p>
+            <p style="margin:0 0 16px;font-size:14px;color:#6F7390;line-height:1.7;">Welcome aboard &mdash; let&rsquo;s make honesty feel good.</p>
+            <p style="margin:0 0 24px;font-size:14px;color:#2B2D42;line-height:1.7;font-weight:600;">Mitchell</p>
 
             <!-- CTA Button -->
             <table cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
