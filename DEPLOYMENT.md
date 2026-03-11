@@ -48,6 +48,10 @@
 - EMAIL_PROVIDER: `<optional: smtp or resend>`
 - BLOCK_UNVERIFIED_LOGIN: `true`
 
+Important:
+- `FRONTEND_URL` must be your public app domain (for example `https://www.instrevi.com`).
+- Do not use Vercel deploy hook or dashboard URLs in `FRONTEND_URL`.
+
 ## 🔐 Security Note
 - Do not store real secrets in the repository.
 - Keep all production credentials only in Render/Vercel environment settings.

@@ -10,6 +10,7 @@ const router = express.Router();
 const DEFAULT_FRONTEND_URL = process.env.NODE_ENV === 'production'
   ? 'https://www.instrevi.com'
   : 'http://localhost:3000';
+const PRODUCTION_ALLOWED_FRONTEND_HOSTS = new Set(['www.instrevi.com', 'instrevi.com']);
 
 const resolveFrontendBaseUrl = () => {
   const configuredValue = typeof process.env.FRONTEND_URL === 'string'
@@ -26,10 +27,16 @@ const resolveFrontendBaseUrl = () => {
   try {
     const parsed = new URL(configuredValue);
     const hasSupportedProtocol = parsed.protocol === 'http:' || parsed.protocol === 'https:';
-    const isVercelDeployHook = parsed.hostname === 'api.vercel.com'
-      && parsed.pathname.includes('/v1/integrations/deploy');
+    const parsedHost = parsed.hostname.toLowerCase();
+    const parsedPath = parsed.pathname.toLowerCase();
+    const isVercelDeployHook = parsedHost === 'api.vercel.com'
+      && parsedPath.includes('/v1/integrations/deploy');
+    const isVercelDashboardDeployLink = parsedHost === 'vercel.com'
+      && parsedPath.includes('/integrations/deploy');
+    const isInvalidProductionHost = process.env.NODE_ENV === 'production'
+      && !PRODUCTION_ALLOWED_FRONTEND_HOSTS.has(parsedHost);
 
-    if (!hasSupportedProtocol || isVercelDeployHook) {
+    if (!hasSupportedProtocol || isVercelDeployHook || isVercelDashboardDeployLink || isInvalidProductionHost) {
       console.warn('[auth] FRONTEND_URL is invalid for user-facing links; falling back to a safe default.');
       return DEFAULT_FRONTEND_URL;
     }
