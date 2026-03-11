@@ -42,7 +42,7 @@
 - SMTP_PORT: `<465_or_587>`
 - SMTP_USER: `<smtp_username>`
 - SMTP_PASS: `<smtp_password>`
-- SMTP_FROM: `Instrevi <no-reply@instrevi.com>`
+- SMTP_FROM: `Instrevi <<same_as_smtp_user>>`
 - RESEND_API_KEY: `<optional_resend_key>`
 - RESEND_FROM: `<optional_resend_from_address>`
 - EMAIL_PROVIDER: `<optional: smtp or resend>`
@@ -53,6 +53,7 @@ Important:
 - Do not use Vercel deploy hook or dashboard URLs in `FRONTEND_URL`.
 - Production verification emails are pinned to `https://www.instrevi.com` for safety.
 - If SMTP/Resend is not configured in production, signup/resend now returns `503` instead of silently skipping email delivery.
+- In Render, paste `SMTP_USER` and `SMTP_PASS` as raw values (no surrounding quotes and no extra spaces).
 
 ## 🔐 Security Note
 - Do not store real secrets in the repository.

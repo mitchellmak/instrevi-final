@@ -10,7 +10,7 @@ const directBackendBase = isLoopbackHost
   : `http://${hostname}:5000`;
 
 export const API_BASE = process.env.REACT_APP_API_URL || (
-  isLocalOrLan ? '' : 'https://instrevi-final.onrender.com'
+  isLocalOrLan ? '' : 'https://api.instrevi.com'
 );
 
 export const API_FALLBACK_BASE = hasEnvOverride

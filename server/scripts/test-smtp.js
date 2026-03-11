@@ -1,9 +1,26 @@
 require('dotenv').config();
 const nodemailer = require('nodemailer');
 
-const smtpHost = typeof process.env.SMTP_HOST === 'string' ? process.env.SMTP_HOST.trim() : '';
-const smtpUser = typeof process.env.SMTP_USER === 'string' ? process.env.SMTP_USER.trim() : '';
-const smtpPass = typeof process.env.SMTP_PASS === 'string' ? process.env.SMTP_PASS : '';
+const normalizeSmtpCredential = (value) => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const trimmedValue = value.trim();
+
+  if (
+    (trimmedValue.startsWith('"') && trimmedValue.endsWith('"'))
+    || (trimmedValue.startsWith('\'') && trimmedValue.endsWith('\''))
+  ) {
+    return trimmedValue.slice(1, -1).trim();
+  }
+
+  return trimmedValue;
+};
+
+const smtpHost = normalizeSmtpCredential(process.env.SMTP_HOST);
+const smtpUser = normalizeSmtpCredential(process.env.SMTP_USER);
+const smtpPass = normalizeSmtpCredential(process.env.SMTP_PASS);
 const smtpFrom = typeof process.env.SMTP_FROM === 'string' && process.env.SMTP_FROM.trim()
   ? process.env.SMTP_FROM.trim()
   : (smtpUser || 'no-reply@instrevi.com');
