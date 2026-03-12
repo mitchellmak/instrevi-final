@@ -1,0 +1,76 @@
+name: First-Party Brand Guard
+
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  scan-first-party:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan first-party files for restricted platform keywords
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PATTERN='\b(instagram|youtube|tiktok|facebook|twitter|snapchat|reddit|discord|linkedin|pinterest)\b'
+
+          TARGETS=(
+            "README.md"
+            "client/public"
+            "client/src"
+            "server/index.js"
+            "server/constants"
+            "server/middleware"
+            "server/models"
+            "server/routes"
+            "server/utils"
+            "server/scripts"
+            "Admin"
+            "admin-desktop/main.js"
+            "admin-desktop/README.md"
+            "admin-desktop/package.json"
+            "admin-desktop/RELEASE_CHECKLIST.md"
+          )
+
+          files=()
+          for target in "${TARGETS[@]}"; do
+            if [ -d "$target" ]; then
+              while IFS= read -r -d '' file; do
+                files+=("$file")
+              done < <(find "$target" -type f -print0)
+            elif [ -f "$target" ]; then
+              files+=("$target")
+            fi
+          done
+
+          filtered_files=()
+          for file in "${files[@]}"; do
+            case "$file" in
+              */node_modules/*|client/build/*|admin-desktop/dist/*|*/package-lock.json|server/uploads/*|tmp-smoke/*)
+                continue
+                ;;
+            esac
+            filtered_files+=("$file")
+          done
+
+          if [ "${#filtered_files[@]}" -eq 0 ]; then
+            echo "No first-party files found to scan."
+            exit 0
+          fi
+
+          if grep -nEHi "$PATTERN" "${filtered_files[@]}"; then
+            echo "::error::Restricted platform-brand keyword found in first-party files."
+            exit 1
+          fi
+
+          echo "Brand guard passed: no restricted platform keywords found in first-party files."

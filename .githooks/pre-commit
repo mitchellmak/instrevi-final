@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BLOCKED_PATH_PATTERN='^(tmp-smoke/|server/uploads/|client/build/|admin-desktop/dist/|(.*/)?node_modules/)'
+
+staged_files="$(git diff --cached --name-only --diff-filter=ACMR)"
+if [ -z "$staged_files" ]; then
+  exit 0
+fi
+
+blocked_files="$(printf '%s\n' "$staged_files" | grep -E "$BLOCKED_PATH_PATTERN" || true)"
+if [ -z "$blocked_files" ]; then
+  exit 0
+fi
+
+echo "Commit blocked: generated/local artifact paths are staged."
+echo "$blocked_files"
+echo ""
+echo "Unstage these files before committing, for example:"
+echo "  git restore --staged <path>"
+echo "If this is intentional, bypass once with: git commit --no-verify"
+
+exit 1
