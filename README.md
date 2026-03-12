@@ -1,6 +1,6 @@
-# Instrevi - Instagram-like Social Media App
+# Instrevi
 
-A full-stack Instagram clone built with React, Node.js, and MongoDB.
+A full-stack social review and sharing platform built with React, Node.js, and MongoDB.
 
 ## Features
 
@@ -108,7 +108,7 @@ Instrevi/
 ## Future Enhancements
 
 - Real-time notifications
-- Stories feature
+- Temporary updates
 - Direct messaging
 - Explore/discover page
 - Advanced image filters

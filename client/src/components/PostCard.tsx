@@ -74,10 +74,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   const overlayPostTransitionTimerRef = React.useRef<number | null>(null);
   const overlayPostTransitionInProgressRef = React.useRef(false);
   const wasMediaOverlayOpenRef = React.useRef(false);
-  const likes = Array.isArray(post.likes) ? post.likes : [];
-  const comments = Array.isArray(post.comments) ? post.comments : [];
+  const likes = React.useMemo(() => (Array.isArray(post.likes) ? post.likes : []), [post.likes]);
+  const comments = React.useMemo(() => (Array.isArray(post.comments) ? post.comments : []), [post.comments]);
   const postUser = post.user || ({ username: 'Deleted user' } as any);
   const postUserId = getEntityId(post.user);
+  const currentUserId = getEntityId(user);
   const postCategory = post.category === 'Places' ? 'Establishment' : post.category;
   const formattedCaptionHtml = React.useMemo(() => formatRichTextToHtml(post.caption || ''), [post.caption]);
   const businessDisplayName = React.useMemo(() => {
@@ -101,6 +102,22 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     extractCaptionTags(post.caption || '').forEach((tag) => tags.add(tag));
     return Array.from(tags).slice(0, 10);
   }, [post.tags, post.caption]);
+  const hasLikedFromServer = React.useMemo(() => {
+    if (!currentUserId) return false;
+
+    return likes.some((likeEntry) => getEntityId(likeEntry) === currentUserId);
+  }, [likes, currentUserId]);
+  const displayLikesCount = React.useMemo(() => {
+    if (!currentUserId || liked === hasLikedFromServer) {
+      return likes.length;
+    }
+
+    return liked ? likes.length + 1 : Math.max(0, likes.length - 1);
+  }, [currentUserId, hasLikedFromServer, liked, likes.length]);
+
+  React.useEffect(() => {
+    setLiked(hasLikedFromServer);
+  }, [hasLikedFromServer]);
 
   const openPostUserProfile = () => {
     if (!postUserId) return;
@@ -222,13 +239,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     color: 'var(--brand-accent)'
   };
 
-  const renderHeartIcon = () => (
+  const renderHeartIcon = (variant: 'default' | 'overlay' = 'default') => (
     <svg
       width="22"
       height="22"
       viewBox="0 0 24 24"
       fill={liked ? '#ed4956' : 'none'}
-      stroke={liked ? '#ed4956' : 'var(--brand-accent)'}
+      stroke={liked ? '#ed4956' : (variant === 'overlay' ? '#ffffff' : 'var(--brand-accent)')}
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -237,13 +254,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     </svg>
   );
 
-  const renderCommentIcon = () => (
+  const renderCommentIcon = (variant: 'default' | 'overlay' = 'default') => (
     <svg
       width="22"
       height="22"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="var(--brand-accent)"
+      stroke={variant === 'overlay' ? '#ffffff' : 'var(--brand-accent)'}
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -252,13 +269,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     </svg>
   );
 
-  const renderShareIcon = () => (
+  const renderShareIcon = (variant: 'default' | 'overlay' = 'default') => (
     <svg
       width="22"
       height="22"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="var(--brand-accent)"
+      stroke={variant === 'overlay' ? '#ffffff' : 'var(--brand-accent)'}
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -273,7 +290,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
 
   const handleLike = () => {
     if (isBanned) return;
-    setLiked(!liked);
+    setLiked((prev) => !prev);
     onLike(post._id);
   };
 
@@ -311,10 +328,16 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     }
   };
 
-  const openCommentsModal = () => {
+  const openCommentsModal = (options?: { keepMediaOverlay?: boolean }) => {
+    const keepMediaOverlay = options?.keepMediaOverlay === true;
+
     resetOverlayPostTransitionState();
     resetOverlayHorizontalSnapState();
-    setIsMediaOverlayOpen(false);
+
+    if (!keepMediaOverlay) {
+      setIsMediaOverlayOpen(false);
+    }
+
     setIsFullReviewModalOpen(false);
     setIsCommentsModalOpen(true);
   };
@@ -689,26 +712,36 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
             onScroll={handleMediaCarouselScroll}
           >
             {mediaItems.map((item, index) => (
-              <div key={`${item.url}-${index}`} className="post-media-slide">
+              <div
+                key={`${item.url}-${index}`}
+                className={`post-media-slide ${item.kind === 'image' ? 'post-media-slide--image' : 'post-media-slide--video'}`}
+              >
                 {item.kind === 'video' ? (
                   <video
                     src={item.url}
                     playsInline
                     preload="metadata"
-                    className="post-media-asset"
+                    className="post-media-asset post-media-asset--video"
                     onLoadedMetadata={(event) => {
                       updateMediaOrientationForIndex(index, event.currentTarget.videoWidth, event.currentTarget.videoHeight);
                     }}
                   />
                 ) : (
-                  <img
-                    src={item.url}
-                    alt={post.title || post.caption || 'Post media'}
-                    className="post-media-asset"
-                    onLoad={(event) => {
-                      updateMediaOrientationForIndex(index, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight);
-                    }}
-                  />
+                  <>
+                    <div
+                      className="post-media-slide-backdrop"
+                      style={{ backgroundImage: `url(${item.url})` }}
+                      aria-hidden="true"
+                    />
+                    <img
+                      src={item.url}
+                      alt={post.title || post.caption || 'Post media'}
+                      className="post-media-asset post-media-asset--image"
+                      onLoad={(event) => {
+                        updateMediaOrientationForIndex(index, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight);
+                      }}
+                    />
+                  </>
                 )}
               </div>
             ))}
@@ -773,7 +806,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
             onScroll={handleOverlayCarouselScroll}
           >
             {mediaItems.map((item, index) => (
-              <div key={`${item.url}-overlay-${index}`} className="post-media-overlay-slide">
+              <div
+                key={`${item.url}-overlay-${index}`}
+                className={`post-media-overlay-slide ${item.kind === 'image' ? 'post-media-overlay-slide--image' : 'post-media-overlay-slide--video'}`}
+              >
                 {item.kind === 'video' ? (
                   <video
                     src={item.url}
@@ -781,19 +817,25 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
                     autoPlay={index === activeMediaIndex}
                     playsInline
                     preload="metadata"
-                    className="post-media-overlay-asset"
+                    className="post-media-overlay-asset post-media-overlay-asset--video"
                   />
                 ) : (
-                  <img
-                    src={item.url}
-                    alt={post.title || post.caption || 'Post media'}
-                    className="post-media-overlay-asset"
-                  />
+                  <>
+                    <div
+                      className="post-media-overlay-slide-backdrop"
+                      style={{ backgroundImage: `url(${item.url})` }}
+                      aria-hidden="true"
+                    />
+                    <img
+                      src={item.url}
+                      alt={post.title || post.caption || 'Post media'}
+                      className="post-media-overlay-asset post-media-overlay-asset--image"
+                    />
+                  </>
                 )}
               </div>
             ))}
           </div>
-
           {mediaItems.length > 1 && (
             <div className="post-media-overlay-dots" aria-label={`Fullscreen media ${activeMediaIndex + 1} of ${mediaItems.length}`}>
               {mediaItems.map((_, index) => (
@@ -807,17 +849,66 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
               ))}
             </div>
           )}
+
+          <div className="post-media-overlay-actions">
+            <button
+              type="button"
+              className={`post-media-overlay-action-btn ${liked ? 'is-liked' : ''}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleLike();
+              }}
+              disabled={isBanned}
+              title={isBanned ? 'Banned users cannot like or comment' : undefined}
+              aria-label="Like post"
+            >
+              {renderHeartIcon('overlay')}
+              <span>{displayLikesCount}</span>
+            </button>
+
+            <button
+              type="button"
+              className="post-media-overlay-action-btn"
+              onClick={(event) => {
+                event.stopPropagation();
+                openCommentsModal({ keepMediaOverlay: true });
+              }}
+              disabled={isBanned}
+              title={isBanned ? 'Banned users cannot like or comment' : undefined}
+              aria-label="Open comments"
+            >
+              {renderCommentIcon('overlay')}
+              <span>{comments.length}</span>
+            </button>
+
+            <button
+              type="button"
+              className="post-media-overlay-action-btn"
+              onClick={async (event) => {
+                event.stopPropagation();
+                await handleSharePost();
+              }}
+              aria-label="Share post"
+            >
+              {renderShareIcon('overlay')}
+              <span>Share</span>
+            </button>
+
+            {isReview && (
+              <button
+                type="button"
+                className="post-media-overlay-action-btn post-media-overlay-action-btn--review"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsFullReviewModalOpen(true);
+                }}
+                aria-label="View full review"
+              >
+                <span>Review</span>
+              </button>
+            )}
+          </div>
         </div>
-        <button
-          type="button"
-          className="post-media-overlay-review-btn"
-          onClick={(event) => {
-            event.stopPropagation();
-            setIsFullReviewModalOpen(true);
-          }}
-        >
-          View full review
-        </button>
       </div>
     );
   };
@@ -1073,26 +1164,19 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     return (
       <div className="post-comments-modal" onClick={() => setIsCommentsModalOpen(false)}>
         <div className="post-comments-modal-panel" onClick={(event) => event.stopPropagation()}>
-          <div className="post-comments-modal-header">
-            <h3>Comments</h3>
-            <button
-              type="button"
-              className="post-comments-modal-close"
-              onClick={() => setIsCommentsModalOpen(false)}
-              aria-label="Close comments"
-            >
-              ×
-            </button>
-          </div>
-
           <div className="post-comments-modal-list">
             {comments.length === 0 ? (
               <div className="post-comments-empty">No comments yet</div>
             ) : (
               comments.map((comment) => (
                 <div key={comment._id} className="post-comments-item">
-                  <span className="post-comments-user">{comment.user?.username || 'Deleted user'}</span>
-                  <span className="post-comments-text">{comment.text}</span>
+                  <div className="post-comments-avatar">
+                    <UserAvatar user={comment.user as any} size={20} />
+                  </div>
+                  <div className="post-comments-body">
+                    <span className="post-comments-user">{comment.user?.username || 'Deleted user'}</span>
+                    <span className="post-comments-text">{comment.text}</span>
+                  </div>
                 </div>
               ))
             )}
@@ -1274,7 +1358,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
           </div>
 
           <div style={{ fontWeight: '600', marginBottom: '8px', fontSize: '14px' }}>
-            {likes.length} {likes.length === 1 ? 'like' : 'likes'}
+            {displayLikesCount} {displayLikesCount === 1 ? 'like' : 'likes'}
           </div>
 
           {renderCommentPreview()}
@@ -1368,7 +1452,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
           </div>
 
           <div style={{ fontWeight: '600', marginBottom: '8px', fontSize: '14px' }}>
-            {post.likes.length} {post.likes.length === 1 ? 'like' : 'likes'}
+            {displayLikesCount} {displayLikesCount === 1 ? 'like' : 'likes'}
           </div>
 
           {renderCommentPreview()}
@@ -1436,7 +1520,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
         </div>
 
         <div style={{ fontWeight: '600', marginBottom: '8px' }}>
-          {post.likes.length} likes
+          {displayLikesCount} {displayLikesCount === 1 ? 'like' : 'likes'}
         </div>
 
         {post.caption && (

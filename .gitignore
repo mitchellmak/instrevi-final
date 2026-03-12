@@ -81,6 +81,7 @@ public
 # Temporary folders
 tmp/
 temp/
+tmp-smoke/
 
 # Editor directories and files
 .vscode/*
@@ -98,6 +99,7 @@ dist/
 
 # Upload folders
 uploads/
+server/uploads/
 
 # Local admin prototype (do not commit)
 Admin/
