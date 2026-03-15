@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../utils/apiFetch';
-
-interface SelectedMediaItem {
-  file: File;
-  preview: string;
-  kind: 'image' | 'video';
-}
+import MediaComposerEditor from '../components/MediaComposerEditor';
+import {
+  ComposerMediaItem,
+  ComposerSoundtrack,
+  createDefaultMediaEdit,
+  createEmptySoundtrack,
+} from '../utils/mediaEditing';
 
 const CreateReview: React.FC = () => {
   const { token, user } = useAuth();
@@ -24,7 +25,8 @@ const CreateReview: React.FC = () => {
   const [tags, setTags] = useState('');
   const [friendsOrAnyone, setFriendsOrAnyone] = useState('');
   const [caption, setCaption] = useState('');
-  const [selectedMedia, setSelectedMedia] = useState<SelectedMediaItem[]>([]);
+  const [selectedMedia, setSelectedMedia] = useState<ComposerMediaItem[]>([]);
+  const [soundtrack, setSoundtrack] = useState<ComposerSoundtrack>(createEmptySoundtrack);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const CAPTION_MAX_LENGTH = 2200;
@@ -32,7 +34,8 @@ const CreateReview: React.FC = () => {
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
   const videoCameraInputRef = React.useRef<HTMLInputElement>(null);
   const captionInputRef = React.useRef<HTMLTextAreaElement>(null);
-  const selectedMediaRef = React.useRef<SelectedMediaItem[]>([]);
+  const selectedMediaRef = React.useRef<ComposerMediaItem[]>([]);
+  const soundtrackRef = React.useRef<ComposerSoundtrack>(soundtrack);
 
   // For Products category ratings (-5 to +5)
   const [qualityRating, setQualityRating] = useState(0);
@@ -66,6 +69,9 @@ const CreateReview: React.FC = () => {
   const [valueForMoneyRating, setValueForMoneyRating] = useState(0);
   const [placesOverallRating, setPlacesOverallRating] = useState(0);
   const [includeServiceReview, setIncludeServiceReview] = useState(false);
+  const [includeCustomRating, setIncludeCustomRating] = useState(false);
+  const [customRating, setCustomRating] = useState(0);
+  const [customRatingName, setCustomRatingName] = useState('Custom rating');
 
   // Auto-calculate overall rating from the 5 aspects
   useEffect(() => {
@@ -83,6 +89,27 @@ const CreateReview: React.FC = () => {
       setPlacesOverallRating(average);
     }
   }, [reviewCategory, qualityRating, durabilityRating, performanceRating, designRating, valueRating, courtesyRating, professionalismRating, responsivenessRating, serviceValueRating, problemResolutionRating, tasteRating, textureRating, freshnessRating, presentationRating, foodValueRating, cleanlinessRating, maintenanceRating, locationRating, amenitiesRating, valueForMoneyRating]);
+
+  const baseOverallRating = reviewCategory === 'Products'
+    ? overallRating
+    : reviewCategory === 'Service'
+      ? serviceOverallRating
+      : reviewCategory === 'Food'
+        ? foodOverallRating
+        : placesOverallRating;
+
+  const overallAspectCount = 5;
+  const effectiveOverallRating = includeCustomRating
+    ? Number((((baseOverallRating * overallAspectCount) + customRating) / (overallAspectCount + 1)).toFixed(2))
+    : baseOverallRating;
+
+  const normalizedCustomRatingName = customRatingName.trim() || 'Custom rating';
+
+  const ratingTargetName = (
+    reviewCategory === 'Establishment'
+      ? shopName.trim()
+      : (includeShopName ? shopName.trim() : '')
+  ) || title.trim() || 'this review';
 
   const applyCaptionFormatting = (format: 'bold' | 'italic' | 'underline' | 'bullet') => {
     const input = captionInputRef.current;
@@ -146,11 +173,16 @@ const CreateReview: React.FC = () => {
   const appendSelectedFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
-    const additions: SelectedMediaItem[] = Array.from(files).map((file) => ({
-      file,
-      preview: URL.createObjectURL(file),
-      kind: file.type.startsWith('video/') ? 'video' : 'image'
-    }));
+    const additions: ComposerMediaItem[] = Array.from(files).map((file) => {
+      const kind = file.type.startsWith('video/') ? 'video' : 'image';
+
+      return {
+        file,
+        preview: URL.createObjectURL(file),
+        kind,
+        edit: createDefaultMediaEdit(kind),
+      };
+    });
 
     setSelectedMedia((prev) => [...prev, ...additions]);
   };
@@ -213,12 +245,20 @@ const CreateReview: React.FC = () => {
   }, [selectedMedia]);
 
   useEffect(() => {
+    soundtrackRef.current = soundtrack;
+  }, [soundtrack]);
+
+  useEffect(() => {
     return () => {
       selectedMediaRef.current.forEach((item) => {
         if (item.preview.startsWith('blob:')) {
           URL.revokeObjectURL(item.preview);
         }
       });
+
+      if (soundtrackRef.current.previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(soundtrackRef.current.previewUrl);
+      }
     };
   }, []);
 
@@ -257,6 +297,10 @@ const CreateReview: React.FC = () => {
 
       const imageFiles = selectedMedia.filter((item) => item.kind === 'image').map((item) => item.file);
       const videoFiles = selectedMedia.filter((item) => item.kind === 'video').map((item) => item.file);
+      const mediaEditSettings = [
+        ...selectedMedia.filter((item) => item.kind === 'image').map((item) => item.edit),
+        ...selectedMedia.filter((item) => item.kind === 'video').map((item) => item.edit),
+      ];
 
       imageFiles.forEach((file) => {
         formData.append('images', file);
@@ -265,6 +309,15 @@ const CreateReview: React.FC = () => {
       videoFiles.forEach((file) => {
         formData.append('videos', file);
       });
+
+      if (mediaEditSettings.length > 0) {
+        formData.append('mediaEditSettings', JSON.stringify(mediaEditSettings));
+      }
+
+      if (soundtrack.file) {
+        formData.append('soundtrack', soundtrack.file);
+        formData.append('soundtrackVolume', soundtrack.volume.toString());
+      }
       
       // Include shop details if applicable
       if (includeShopName) {
@@ -282,10 +335,11 @@ const CreateReview: React.FC = () => {
           { label: 'Performance', value: performanceRating },
           { label: 'Design', value: designRating },
           { label: 'Value for Money', value: valueRating },
-          { label: 'Overall', value: overallRating }
+          ...(includeCustomRating ? [{ label: normalizedCustomRatingName, value: customRating }] : []),
+          { label: 'Overall', value: effectiveOverallRating }
         ];
         formData.append('stats', JSON.stringify(stats));
-        formData.append('rating', overallRating.toString());
+        formData.append('rating', effectiveOverallRating.toString());
       } else if (reviewCategory === 'Service') {
         const stats = [
           { label: 'Courtesy', value: courtesyRating },
@@ -293,10 +347,11 @@ const CreateReview: React.FC = () => {
           { label: 'Responsiveness', value: responsivenessRating },
           { label: 'Efficiency', value: serviceValueRating },
           { label: 'Problem Resolution', value: problemResolutionRating },
-          { label: 'Overall', value: serviceOverallRating }
+          ...(includeCustomRating ? [{ label: normalizedCustomRatingName, value: customRating }] : []),
+          { label: 'Overall', value: effectiveOverallRating }
         ];
         formData.append('stats', JSON.stringify(stats));
-        formData.append('rating', serviceOverallRating.toString());
+        formData.append('rating', effectiveOverallRating.toString());
       } else if (reviewCategory === 'Food') {
         const stats = [
           { label: 'Taste', value: tasteRating },
@@ -304,10 +359,11 @@ const CreateReview: React.FC = () => {
           { label: 'Freshness', value: freshnessRating },
           { label: 'Presentation', value: presentationRating },
           { label: 'Value for Money', value: foodValueRating },
-          { label: 'Overall', value: foodOverallRating }
+          ...(includeCustomRating ? [{ label: normalizedCustomRatingName, value: customRating }] : []),
+          { label: 'Overall', value: effectiveOverallRating }
         ];
         formData.append('stats', JSON.stringify(stats));
-        formData.append('rating', foodOverallRating.toString());
+        formData.append('rating', effectiveOverallRating.toString());
       } else if (reviewCategory === 'Establishment') {
         const stats = [
           { label: 'Cleanliness', value: cleanlinessRating },
@@ -315,7 +371,8 @@ const CreateReview: React.FC = () => {
           { label: 'Location', value: locationRating },
           { label: 'Amenities', value: amenitiesRating },
           { label: 'Value for Money', value: valueForMoneyRating },
-          { label: 'Overall', value: placesOverallRating }
+          ...(includeCustomRating ? [{ label: normalizedCustomRatingName, value: customRating }] : []),
+          { label: 'Overall', value: effectiveOverallRating }
         ];
         if (includeServiceReview) {
           const serviceStats = [
@@ -329,7 +386,12 @@ const CreateReview: React.FC = () => {
           stats.push({ label: 'Service Review', value: JSON.stringify(serviceStats) });
         }
         formData.append('stats', JSON.stringify(stats));
-        formData.append('rating', placesOverallRating.toString());
+        formData.append('rating', effectiveOverallRating.toString());
+      }
+
+      if (includeCustomRating) {
+        formData.append('customRating', customRating.toString());
+        formData.append('customRatingName', normalizedCustomRatingName);
       }
 
       const response = await apiFetch('/api/posts', {
@@ -359,6 +421,24 @@ const CreateReview: React.FC = () => {
 
         throw new Error(errorMessage);
       }
+
+      setSelectedMedia((prev) => {
+        prev.forEach((item) => {
+          if (item.preview.startsWith('blob:')) {
+            URL.revokeObjectURL(item.preview);
+          }
+        });
+
+        return [];
+      });
+
+      setSoundtrack((current) => {
+        if (current.previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(current.previewUrl);
+        }
+
+        return createEmptySoundtrack();
+      });
 
       navigate('/feed');
     } catch (err) {
@@ -1017,77 +1097,86 @@ const CreateReview: React.FC = () => {
           </div>
 
           {selectedMedia.length > 0 && (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
-              gap: '8px'
-            }}>
-              {selectedMedia.map((item, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    position: 'relative',
-                    paddingBottom: '100%',
-                    backgroundColor: '#f0f0f0',
-                    borderRadius: '6px',
-                    overflow: 'hidden'
-                  }}
-                >
-                  {item.kind === 'video' ? (
-                    <video
-                      src={item.preview}
-                      muted
-                      playsInline
-                      controls
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        backgroundColor: '#000'
-                      }}
-                    />
-                  ) : (
-                    <img
-                      src={item.preview}
-                      alt={`Review media ${idx + 1}`}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover'
-                      }}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => removeMedia(idx)}
+            <>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                gap: '8px'
+              }}>
+                {selectedMedia.map((item, idx) => (
+                  <div
+                    key={idx}
                     style={{
-                      position: 'absolute',
-                      top: '4px',
-                      right: '4px',
-                      backgroundColor: 'rgba(0,0,0,0.6)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '50%',
-                      width: '24px',
-                      height: '24px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
+                      position: 'relative',
+                      paddingBottom: '100%',
+                      backgroundColor: '#f0f0f0',
+                      borderRadius: '6px',
+                      overflow: 'hidden'
                     }}
                   >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
+                    {item.kind === 'video' ? (
+                      <video
+                        src={item.preview}
+                        muted
+                        playsInline
+                        controls
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          backgroundColor: '#000'
+                        }}
+                      />
+                    ) : (
+                      <img
+                        src={item.preview}
+                        alt={`Review media ${idx + 1}`}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeMedia(idx)}
+                      style={{
+                        position: 'absolute',
+                        top: '4px',
+                        right: '4px',
+                        backgroundColor: 'rgba(0,0,0,0.6)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '24px',
+                        height: '24px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <MediaComposerEditor
+                items={selectedMedia}
+                onItemsChange={setSelectedMedia}
+                soundtrack={soundtrack}
+                onSoundtrackChange={setSoundtrack}
+              />
+            </>
           )}
         </div>
 
@@ -1947,6 +2036,106 @@ const CreateReview: React.FC = () => {
             )}
           </div>
         )}
+
+        <div
+          style={{
+            marginBottom: '20px',
+            padding: '14px',
+            border: '1px solid #dbdbdb',
+            borderRadius: '8px',
+            backgroundColor: '#fafafa'
+          }}
+        >
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={includeCustomRating}
+              onChange={(e) => setIncludeCustomRating(e.target.checked)}
+              style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#262626' }}
+            />
+            Add custom rating for {ratingTargetName}?
+          </label>
+
+          <div style={{ marginTop: '6px', fontSize: '12px', color: '#6b7280' }}>
+            If enabled, this will also contribute to overall and global ratings.
+          </div>
+
+          {includeCustomRating && (
+            <div style={{ marginTop: '12px' }}>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#4b5563', marginBottom: '6px' }}>
+                  Rating Name
+                </label>
+                <input
+                  type="text"
+                  value={customRatingName}
+                  onChange={(e) => setCustomRatingName(e.target.value)}
+                  placeholder="e.g., Service speed"
+                  maxLength={80}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    boxSizing: 'border-box',
+                    fontFamily: "'Poppins', sans-serif"
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '600', color: '#262626' }}>{normalizedCustomRatingName}</div>
+                <span
+                  style={{
+                    fontSize: '16px',
+                    fontWeight: '700',
+                    color: customRating < 0 ? '#c62828' : customRating === 0 ? '#757575' : '#2e7d32',
+                    minWidth: '35px',
+                    textAlign: 'right'
+                  }}
+                >
+                  {customRating > 0 ? `+${customRating}` : customRating}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '11px', color: '#c62828', fontWeight: '600' }}>-5</span>
+                <input
+                  type="range"
+                  min="-5"
+                  max="5"
+                  step="1"
+                  value={customRating}
+                  onChange={(e) => setCustomRating(Number(e.target.value))}
+                  style={{
+                    flex: 1,
+                    height: '6px',
+                    borderRadius: '3px',
+                    background: 'linear-gradient(to right, #c62828 0%, #757575 50%, #2e7d32 100%)',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#2e7d32', fontWeight: '600' }}>+5</span>
+              </div>
+
+              <div style={{ marginTop: '8px', fontSize: '12px', color: '#4b5563' }}>
+                Base overall: {baseOverallRating > 0 ? `+${baseOverallRating}` : baseOverallRating} ·
+                User overall: {effectiveOverallRating > 0 ? `+${effectiveOverallRating}` : effectiveOverallRating}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Submit Button */}
         <button

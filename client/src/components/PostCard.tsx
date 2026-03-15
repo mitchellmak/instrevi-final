@@ -1,10 +1,20 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Post } from '../types';
+import { MediaEditSettings, Post } from '../types';
 import UserChip from './UserChip';
 import UserAvatar from './UserAvatar';
+import EditedVideo from './EditedVideo';
+import SoundtrackPlayer from './SoundtrackPlayer';
 import { formatRichTextToHtml } from '../utils/richText';
 import { useAuth } from '../hooks/useAuth';
+import { API_BASE } from '../utils/apiBase';
+import {
+  getAspectRatioValue,
+  getFrameSurfaceStyle,
+  getMediaFilter,
+  getMediaTransform,
+  normalizeMediaEdit,
+} from '../utils/mediaEditing';
 
 interface PostCardProps {
   post: Post;
@@ -15,6 +25,7 @@ interface PostCardProps {
 type PostMediaItem = {
   url: string;
   kind: 'image' | 'video';
+  edit: MediaEditSettings;
 };
 
 const OPEN_OVERLAY_EVENT = 'instrevi-open-overlay-for-post';
@@ -61,6 +72,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   const [isMediaOverlayOpen, setIsMediaOverlayOpen] = React.useState(false);
   const [isCommentsModalOpen, setIsCommentsModalOpen] = React.useState(false);
   const [isFullReviewModalOpen, setIsFullReviewModalOpen] = React.useState(false);
+  const [isMediaCarouselInteracting, setIsMediaCarouselInteracting] = React.useState(false);
+  const [isOverlayCarouselInteracting, setIsOverlayCarouselInteracting] = React.useState(false);
   const [overlayPostTransitionDirection, setOverlayPostTransitionDirection] = React.useState<'next' | 'prev' | null>(null);
   const mediaCarouselRef = React.useRef<HTMLDivElement>(null);
   const overlayCarouselRef = React.useRef<HTMLDivElement>(null);
@@ -74,6 +87,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   const overlayPostTransitionTimerRef = React.useRef<number | null>(null);
   const overlayPostTransitionInProgressRef = React.useRef(false);
   const wasMediaOverlayOpenRef = React.useRef(false);
+  const mediaCarouselScrollRafRef = React.useRef<number | null>(null);
+  const mediaCarouselInteractionTimerRef = React.useRef<number | null>(null);
+  const overlayCarouselInteractionTimerRef = React.useRef<number | null>(null);
   const likes = React.useMemo(() => (Array.isArray(post.likes) ? post.likes : []), [post.likes]);
   const comments = React.useMemo(() => (Array.isArray(post.comments) ? post.comments : []), [post.comments]);
   const postUser = post.user || ({ username: 'Deleted user' } as any);
@@ -141,6 +157,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     const seen = new Set<string>();
     const imageList = Array.isArray(post.images) ? post.images : [];
     const videoList = Array.isArray(post.videos) ? post.videos : [];
+    const storedEdits = Array.isArray(post.mediaEditSettings) ? post.mediaEditSettings : [];
+    let editIndex = 0;
 
     const declaredVideoUrls = new Set<string>();
     if (post.video) declaredVideoUrls.add(post.video);
@@ -152,8 +170,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
       if (!url || seen.has(url)) return;
 
       const kind = preferredKind || (declaredVideoUrls.has(url) ? 'video' : 'image');
+      const edit = normalizeMediaEdit(storedEdits[editIndex], kind);
+      editIndex += 1;
       seen.add(url);
-      items.push({ url, kind });
+      items.push({ url, kind, edit });
     };
 
     addMedia(post.image);
@@ -162,7 +182,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     videoList.forEach((url) => addMedia(url, 'video'));
 
     return items;
-  }, [post.image, post.images, post.video, post.videos]);
+  }, [post.image, post.images, post.video, post.videos, post.mediaEditSettings]);
 
   React.useEffect(() => {
     setActiveMediaIndex(0);
@@ -170,6 +190,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     setIsMediaOverlayOpen(false);
     setIsCommentsModalOpen(false);
     setIsFullReviewModalOpen(false);
+    setIsMediaCarouselInteracting(false);
+    setIsOverlayCarouselInteracting(false);
     setIsCaptionExpanded(false);
     setCommentText('');
   }, [post._id]);
@@ -198,6 +220,21 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
 
   React.useEffect(() => {
     return () => {
+      if (mediaCarouselScrollRafRef.current !== null) {
+        window.cancelAnimationFrame(mediaCarouselScrollRafRef.current);
+        mediaCarouselScrollRafRef.current = null;
+      }
+
+      if (mediaCarouselInteractionTimerRef.current !== null) {
+        window.clearTimeout(mediaCarouselInteractionTimerRef.current);
+        mediaCarouselInteractionTimerRef.current = null;
+      }
+
+      if (overlayCarouselInteractionTimerRef.current !== null) {
+        window.clearTimeout(overlayCarouselInteractionTimerRef.current);
+        overlayCarouselInteractionTimerRef.current = null;
+      }
+
       if (overlayHorizontalSettleTimerRef.current !== null) {
         window.clearTimeout(overlayHorizontalSettleTimerRef.current);
         overlayHorizontalSettleTimerRef.current = null;
@@ -225,6 +262,32 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
       window.clearTimeout(overlayPostTransitionTimerRef.current);
       overlayPostTransitionTimerRef.current = null;
     }
+  };
+
+  const markMediaCarouselInteraction = () => {
+    setIsMediaCarouselInteracting(true);
+
+    if (mediaCarouselInteractionTimerRef.current !== null) {
+      window.clearTimeout(mediaCarouselInteractionTimerRef.current);
+    }
+
+    mediaCarouselInteractionTimerRef.current = window.setTimeout(() => {
+      mediaCarouselInteractionTimerRef.current = null;
+      setIsMediaCarouselInteracting(false);
+    }, 140);
+  };
+
+  const markOverlayCarouselInteraction = () => {
+    setIsOverlayCarouselInteracting(true);
+
+    if (overlayCarouselInteractionTimerRef.current !== null) {
+      window.clearTimeout(overlayCarouselInteractionTimerRef.current);
+    }
+
+    overlayCarouselInteractionTimerRef.current = window.setTimeout(() => {
+      overlayCarouselInteractionTimerRef.current = null;
+      setIsOverlayCarouselInteracting(false);
+    }, 140);
   };
 
   const actionIconButtonStyle: React.CSSProperties = {
@@ -304,9 +367,18 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   };
 
   const handleSharePost = async () => {
-    const shareUrl = `${window.location.origin}/feed#${post._id}`;
+    const apiOrigin = API_BASE ? API_BASE.replace(/\/$/, '') : window.location.origin;
+    const shareUrl = `${apiOrigin}/api/posts/share/${post._id}`;
     const shareTitle = post.title || 'Instrevi';
-    const shareText = post.caption || 'Check out this post on Instrevi';
+    const ratingValue = typeof post.rating === 'number'
+      ? post.rating
+      : (typeof post.customRating === 'number' ? post.customRating : null);
+    const ratingText = ratingValue === null
+      ? ''
+      : `Rating ${ratingValue > 0 ? '+' : ''}${Number(ratingValue.toFixed(2))}`;
+    const summaryText = (post.caption || '').replace(/\s+/g, ' ').trim();
+    const snippet = summaryText.length > 220 ? `${summaryText.slice(0, 217)}...` : summaryText;
+    const shareText = [ratingText, snippet || 'Check out this post on Instrevi'].filter(Boolean).join(' • ');
 
     try {
       if (navigator.share) {
@@ -360,6 +432,17 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     return `${value}`;
   };
 
+  const renderRatingStars = (value: number, color: string) => {
+    const starCount = Math.min(5, Math.max(0, Math.abs(Math.round(value))));
+    const stars = '★'.repeat(starCount);
+
+    return (
+      <span style={{ color, fontSize: '13px', fontWeight: 700, letterSpacing: '0.08em', lineHeight: 1 }}>
+        {stars || '—'}
+      </span>
+    );
+  };
+
   const updateMediaOrientationForIndex = (index: number, width: number, height: number) => {
     if (!width || !height) return;
 
@@ -374,14 +457,20 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
 
   const handleMediaCarouselScroll = () => {
     if (!mediaCarouselRef.current) return;
+    markMediaCarouselInteraction();
+    if (mediaCarouselScrollRafRef.current !== null) return;
 
-    const { scrollLeft, clientWidth } = mediaCarouselRef.current;
-    if (!clientWidth) return;
+    mediaCarouselScrollRafRef.current = window.requestAnimationFrame(() => {
+      mediaCarouselScrollRafRef.current = null;
 
-    const nextIndex = Math.round(scrollLeft / clientWidth);
-    if (nextIndex !== activeMediaIndex) {
-      setActiveMediaIndex(nextIndex);
-    }
+      if (!mediaCarouselRef.current) return;
+      const { scrollLeft, clientWidth } = mediaCarouselRef.current;
+      if (!clientWidth) return;
+
+      const roundedIndex = Math.round(scrollLeft / clientWidth);
+      const nextIndex = Math.max(0, Math.min(mediaItems.length - 1, roundedIndex));
+      setActiveMediaIndex((prev) => (prev === nextIndex ? prev : nextIndex));
+    });
   };
 
   const scrollToMediaIndex = (index: number) => {
@@ -392,10 +481,117 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
       behavior: 'smooth'
     });
 
-    setActiveMediaIndex(index);
+    setActiveMediaIndex((prev) => (prev === index ? prev : index));
   };
 
   const activeMedia = mediaItems[activeMediaIndex] || null;
+
+  const renderStyledMediaAsset = (item: PostMediaItem, index: number, mode: 'card' | 'overlay') => {
+    const frameSurface = getFrameSurfaceStyle(item.edit);
+    const aspectRatio = getAspectRatioValue(item.edit.aspectRatio);
+    const assetStyle: React.CSSProperties = {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+      filter: getMediaFilter(item.edit),
+      transform: getMediaTransform(item.edit),
+      transformOrigin: 'center center',
+      position: 'relative',
+      zIndex: 1,
+    };
+
+    const frameStyle: React.CSSProperties = {
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: frameSurface.padding,
+      background: frameSurface.background,
+      borderRadius: frameSurface.borderRadius,
+      boxShadow: frameSurface.boxShadow,
+      boxSizing: 'border-box',
+    };
+
+    const canvasStyle: React.CSSProperties = {
+      position: 'relative',
+      width: '100%',
+      height: aspectRatio ? 'auto' : '100%',
+      maxWidth: '100%',
+      maxHeight: '100%',
+      aspectRatio,
+      overflow: 'hidden',
+      borderRadius: frameSurface.canvasBorderRadius,
+      background: '#050505',
+    };
+
+    const captionPlacement: React.CSSProperties = item.edit.overlayPosition === 'top'
+      ? { top: 12 }
+      : item.edit.overlayPosition === 'center'
+        ? { top: '50%', transform: 'translateY(-50%)' }
+        : { bottom: 12 };
+
+    return (
+      <div style={frameStyle}>
+        <div style={canvasStyle}>
+          {item.kind === 'video' ? (
+            <EditedVideo
+              src={item.url}
+              edit={item.edit}
+              playsInline
+              preload="metadata"
+              controls={mode === 'overlay'}
+              autoPlay={mode === 'overlay' && index === activeMediaIndex}
+              segmentMode={mode === 'overlay' ? 'pause' : 'pause'}
+              className={mode === 'overlay' ? 'post-media-overlay-asset post-media-overlay-asset--video' : 'post-media-asset post-media-asset--video'}
+              onLoadedMetadata={(event) => {
+                updateMediaOrientationForIndex(index, event.currentTarget.videoWidth, event.currentTarget.videoHeight);
+              }}
+              style={assetStyle}
+            />
+          ) : (
+            <>
+              <div
+                className={mode === 'overlay' ? 'post-media-overlay-slide-backdrop' : 'post-media-slide-backdrop'}
+                style={{ backgroundImage: `url(${item.url})` }}
+                aria-hidden="true"
+              />
+              <img
+                src={item.url}
+                alt={post.title || post.caption || 'Post media'}
+                className={mode === 'overlay' ? 'post-media-overlay-asset post-media-overlay-asset--image' : 'post-media-asset post-media-asset--image'}
+                onLoad={(event) => {
+                  updateMediaOrientationForIndex(index, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight);
+                }}
+                style={assetStyle}
+              />
+            </>
+          )}
+
+          {item.edit.overlayText && (
+            <div
+              style={{
+                position: 'absolute',
+                left: 12,
+                right: 12,
+                textAlign: 'center',
+                color: '#ffffff',
+                fontSize: mode === 'overlay' ? '15px' : '13px',
+                fontWeight: 700,
+                letterSpacing: '0.02em',
+                textShadow: '0 2px 12px rgba(0,0,0,0.6)',
+                pointerEvents: 'none',
+                zIndex: 2,
+                ...captionPlacement,
+              }}
+            >
+              {item.edit.overlayText}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const openMediaOverlay = (index = activeMediaIndex) => {
     if (mediaItems.length === 0) return;
@@ -406,6 +602,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     setActiveMediaIndex(boundedIndex);
     setIsCommentsModalOpen(false);
     setIsFullReviewModalOpen(false);
+    setIsOverlayCarouselInteracting(false);
     setIsMediaOverlayOpen(true);
   };
 
@@ -510,7 +707,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
       behavior
     });
 
-    setActiveMediaIndex(index);
+    setActiveMediaIndex((prev) => (prev === index ? prev : index));
   };
 
   const openAdjacentOverlayMedia = (direction: 'next' | 'prev') => {
@@ -645,46 +842,60 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
 
   const handleOverlayCarouselScroll = () => {
     if (!overlayCarouselRef.current) return;
+    markOverlayCarouselInteraction();
 
     const { scrollLeft, clientWidth } = overlayCarouselRef.current;
     if (!clientWidth) return;
 
-    const nextIndex = Math.round(scrollLeft / clientWidth);
-    if (nextIndex !== activeMediaIndex) {
-      setActiveMediaIndex(nextIndex);
-    }
+    const roundedIndex = Math.round(scrollLeft / clientWidth);
+    const nextIndex = Math.max(0, Math.min(mediaItems.length - 1, roundedIndex));
+    setActiveMediaIndex((prev) => (prev === nextIndex ? prev : nextIndex));
 
     if (overlayHorizontalClampRangeRef.current) {
       scheduleOverlayHorizontalSnap();
     }
   };
 
-  const renderStars = (rating?: number) => {
-    if (!rating) return null;
-    const magnitude = Math.min(5, Math.max(0, Math.abs(Math.round(rating))));
-    const ratingColor = getRatingColor(rating);
-
-    return (
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
-        {[...Array(5)].map((_, i) => (
-            <span key={i} style={{ fontSize: '20px', color: ratingColor, opacity: i < magnitude ? 1 : 0.3, lineHeight: 1 }}>
-            {i < magnitude ? '★' : '☆'}
-          </span>
-        ))}
-        </div>
-        <span style={{ color: ratingColor, fontSize: '14px', fontWeight: 600 }}>
-          ({formatSignedRating(Math.round(rating))})
-        </span>
-      </div>
-    );
-  };
-
   const isReview = post.postType === 'review';
   const isUnboxing = post.postType === 'unboxing';
+  const globalRatingAccent = '#0f766e';
+  const userRatingValue = typeof post.rating === 'number'
+    ? post.rating
+    : (typeof post.customRating === 'number' ? post.customRating : null);
   const totalRatingValue = typeof post.totalRating === 'number'
     ? post.totalRating
-    : (typeof post.rating === 'number' ? post.rating : 0);
+    : (userRatingValue ?? 0);
+  const totalRatingsCountValue = typeof post.totalRatingsCount === 'number'
+    ? post.totalRatingsCount
+    : (userRatingValue === null ? 0 : 1);
+  const globalAverageRating = totalRatingsCountValue > 0
+    ? Number((totalRatingValue / totalRatingsCountValue).toFixed(2))
+    : 0;
+  const normalizedCustomRatingName = typeof post.customRatingName === 'string'
+    ? post.customRatingName.trim()
+    : '';
+  const isCustomRatingStatLabel = (label: string) => {
+    const normalizedLabel = label.trim().toLowerCase();
+    if (!normalizedLabel) {
+      return false;
+    }
+
+    if (normalizedCustomRatingName && normalizedLabel === normalizedCustomRatingName.toLowerCase()) {
+      return true;
+    }
+
+    return normalizedLabel === 'custom rating' || normalizedLabel === 'customer rating';
+  };
+  const customRatingFromStats = Array.isArray(post.stats)
+    ? post.stats.find((stat) => typeof stat.label === 'string' && typeof stat.value === 'number' && isCustomRatingStatLabel(stat.label))?.value
+    : undefined;
+  const customRatingValue = typeof post.customRating === 'number'
+    ? post.customRating
+    : (typeof customRatingFromStats === 'number' ? customRatingFromStats : null);
+  const customRatingLabel = normalizedCustomRatingName || 'Custom rating';
+  const reviewStatsForGrid = Array.isArray(post.stats)
+    ? post.stats.filter((stat) => stat.label !== 'Overall' && !(typeof stat.label === 'string' && isCustomRatingStatLabel(stat.label)))
+    : [];
 
   const renderPostMedia = (size: 'standard' | 'compact') => {
     if (mediaItems.length === 0) {
@@ -704,7 +915,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     };
 
     return (
-      <div className="post-media-section">
+      <div className={`post-media-section${isMediaCarouselInteracting ? ' post-media-section--scrolling' : ''}`}>
         <div className={frameClassName} {...frameInteractionProps}>
           <div
             ref={mediaCarouselRef}
@@ -716,33 +927,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
                 key={`${item.url}-${index}`}
                 className={`post-media-slide ${item.kind === 'image' ? 'post-media-slide--image' : 'post-media-slide--video'}`}
               >
-                {item.kind === 'video' ? (
-                  <video
-                    src={item.url}
-                    playsInline
-                    preload="metadata"
-                    className="post-media-asset post-media-asset--video"
-                    onLoadedMetadata={(event) => {
-                      updateMediaOrientationForIndex(index, event.currentTarget.videoWidth, event.currentTarget.videoHeight);
-                    }}
-                  />
-                ) : (
-                  <>
-                    <div
-                      className="post-media-slide-backdrop"
-                      style={{ backgroundImage: `url(${item.url})` }}
-                      aria-hidden="true"
-                    />
-                    <img
-                      src={item.url}
-                      alt={post.title || post.caption || 'Post media'}
-                      className="post-media-asset post-media-asset--image"
-                      onLoad={(event) => {
-                        updateMediaOrientationForIndex(index, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight);
-                      }}
-                    />
-                  </>
-                )}
+                {renderStyledMediaAsset(item, index, 'card')}
               </div>
             ))}
           </div>
@@ -761,6 +946,21 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
             ))}
           </div>
         )}
+
+        {post.soundtrack?.url && (
+          <div style={{ padding: '0 14px 14px', background: '#ffffff' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#4b5563', marginBottom: '6px' }}>
+              Soundtrack{post.soundtrack.originalName ? ` • ${post.soundtrack.originalName}` : ''}
+            </div>
+            <SoundtrackPlayer
+              controls
+              preload="none"
+              src={post.soundtrack.url}
+              soundtrackVolume={post.soundtrack.volume || 70}
+              style={{ width: '100%' }}
+            />
+          </div>
+        )}
       </div>
     );
   };
@@ -777,7 +977,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
 
     return (
       <div
-        className={`post-media-overlay${overlayPostTransitionDirection ? ` post-media-overlay--post-transition-${overlayPostTransitionDirection}` : ''}`}
+        className={`post-media-overlay${overlayPostTransitionDirection ? ` post-media-overlay--post-transition-${overlayPostTransitionDirection}` : ''}${isOverlayCarouselInteracting ? ' post-media-overlay--scrolling' : ''}`}
         onClick={closeMediaOverlay}
         onTouchStart={handleOverlayTouchStart}
         onTouchEnd={handleOverlayTouchEnd}
@@ -810,29 +1010,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
                 key={`${item.url}-overlay-${index}`}
                 className={`post-media-overlay-slide ${item.kind === 'image' ? 'post-media-overlay-slide--image' : 'post-media-overlay-slide--video'}`}
               >
-                {item.kind === 'video' ? (
-                  <video
-                    src={item.url}
-                    controls
-                    autoPlay={index === activeMediaIndex}
-                    playsInline
-                    preload="metadata"
-                    className="post-media-overlay-asset post-media-overlay-asset--video"
-                  />
-                ) : (
-                  <>
-                    <div
-                      className="post-media-overlay-slide-backdrop"
-                      style={{ backgroundImage: `url(${item.url})` }}
-                      aria-hidden="true"
-                    />
-                    <img
-                      src={item.url}
-                      alt={post.title || post.caption || 'Post media'}
-                      className="post-media-overlay-asset post-media-overlay-asset--image"
-                    />
-                  </>
-                )}
+                {renderStyledMediaAsset(item, index, 'overlay')}
               </div>
             ))}
           </div>
@@ -1216,9 +1394,27 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
                 REVIEW • {postCategory || 'Uncategorized'}
               </span>
 
-              {typeof post.rating === 'number' && (
-                <div style={{ marginTop: '6px' }}>
-                  {renderStars(post.rating)}
+              {(userRatingValue !== null || totalRatingsCountValue > 0) && (
+                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {userRatingValue !== null && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--brand-primary)', fontWeight: 600 }}>User rating</span>
+                      {renderRatingStars(userRatingValue, getRatingColor(userRatingValue))}
+                      <span style={{ fontSize: '12px', color: getRatingColor(userRatingValue), fontWeight: 700 }}>
+                        ({formatSignedRating(userRatingValue)})
+                      </span>
+                    </div>
+                  )}
+
+                  {totalRatingsCountValue > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--brand-primary)', fontWeight: 600 }}>Global rating</span>
+                      {renderRatingStars(globalAverageRating, globalRatingAccent)}
+                      <span style={{ fontSize: '12px', color: globalRatingAccent, fontWeight: 700 }}>
+                        ({formatSignedRating(globalAverageRating)})
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1276,7 +1472,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
               backgroundColor: '#f9f9f9',
               borderRadius: '6px'
             }}>
-              {post.stats.filter((stat) => stat.label !== 'Overall').map((stat, idx) => (
+              {reviewStatsForGrid.map((stat, idx) => (
                 <div key={idx} style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: '12px', color: 'var(--brand-primary)', marginBottom: '4px' }}>
                     {stat.label}
@@ -1300,22 +1496,29 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
                   )}
                 </div>
               ))}
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: 'var(--brand-primary)', marginBottom: '4px' }}>
-                  Global rating
+              {customRatingValue !== null ? (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--brand-primary)', marginBottom: '4px' }}>
+                    {customRatingLabel}
+                  </div>
+                  <div style={{
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    color: getRatingColor(customRatingValue),
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <span>{formatSignedRating(customRatingValue)}</span>
+                    <span style={{ lineHeight: 1 }}>★</span>
+                  </div>
                 </div>
-                <div style={{
-                  fontSize: '18px',
-                  fontWeight: '600',
-                  color: getRatingColor(totalRatingValue),
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}>
-                  <span>{formatSignedRating(totalRatingValue)}</span>
-                  <span style={{ lineHeight: 1 }}>★</span>
+              ) : (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '12px', marginBottom: '4px', visibility: 'hidden' }}>Custom rating</div>
+                  <div style={{ fontSize: '18px', fontWeight: '600', visibility: 'hidden' }}>+0 ★</div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 

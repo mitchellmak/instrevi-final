@@ -2,12 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../utils/apiFetch';
-
-interface SelectedMediaItem {
-  file: File;
-  preview: string;
-  kind: 'image' | 'video';
-}
+import MediaComposerEditor from '../components/MediaComposerEditor';
+import {
+  ComposerMediaItem,
+  ComposerSoundtrack,
+  createDefaultMediaEdit,
+  createEmptySoundtrack,
+} from '../utils/mediaEditing';
 
 const CreateUnboxing: React.FC = () => {
   const { token, user } = useAuth();
@@ -16,15 +17,17 @@ const CreateUnboxing: React.FC = () => {
   const chooseFilesInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const videoCameraInputRef = useRef<HTMLInputElement>(null);
-  const selectedMediaRef = useRef<SelectedMediaItem[]>([]);
+  const selectedMediaRef = useRef<ComposerMediaItem[]>([]);
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Product');
   const [caption, setCaption] = useState('');
   const [tags, setTags] = useState('');
-  const [selectedMedia, setSelectedMedia] = useState<SelectedMediaItem[]>([]);
+  const [selectedMedia, setSelectedMedia] = useState<ComposerMediaItem[]>([]);
+  const [soundtrack, setSoundtrack] = useState<ComposerSoundtrack>(createEmptySoundtrack);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const soundtrackRef = useRef<ComposerSoundtrack>(soundtrack);
 
   const categories = [
     'Product', 'Electronics', 'Fashion', 'Beauty', 'Sports', 'Books',
@@ -34,11 +37,16 @@ const CreateUnboxing: React.FC = () => {
   const appendSelectedFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
-    const additions: SelectedMediaItem[] = Array.from(files).map((file) => ({
-      file,
-      preview: URL.createObjectURL(file),
-      kind: file.type.startsWith('video/') ? 'video' : 'image'
-    }));
+    const additions: ComposerMediaItem[] = Array.from(files).map((file) => {
+      const kind = file.type.startsWith('video/') ? 'video' : 'image';
+
+      return {
+        file,
+        preview: URL.createObjectURL(file),
+        kind,
+        edit: createDefaultMediaEdit(kind),
+      };
+    });
 
     setSelectedMedia((prev) => [...prev, ...additions]);
   };
@@ -50,6 +58,12 @@ const CreateUnboxing: React.FC = () => {
   };
 
   const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError('');
+    appendSelectedFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  const handleVideoCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError('');
     appendSelectedFiles(e.target.files);
     e.target.value = '';
@@ -71,12 +85,20 @@ const CreateUnboxing: React.FC = () => {
   }, [selectedMedia]);
 
   useEffect(() => {
+    soundtrackRef.current = soundtrack;
+  }, [soundtrack]);
+
+  useEffect(() => {
     return () => {
       selectedMediaRef.current.forEach((item) => {
         if (item.preview.startsWith('blob:')) {
           URL.revokeObjectURL(item.preview);
         }
       });
+
+      if (soundtrackRef.current.previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(soundtrackRef.current.previewUrl);
+      }
     };
   }, []);
 
@@ -106,6 +128,10 @@ const CreateUnboxing: React.FC = () => {
 
       const imageFiles = selectedMedia.filter((item) => item.kind === 'image').map((item) => item.file);
       const videoFiles = selectedMedia.filter((item) => item.kind === 'video').map((item) => item.file);
+      const mediaEditSettings = [
+        ...selectedMedia.filter((item) => item.kind === 'image').map((item) => item.edit),
+        ...selectedMedia.filter((item) => item.kind === 'video').map((item) => item.edit),
+      ];
 
       imageFiles.forEach((file) => {
         formData.append('images', file);
@@ -114,6 +140,15 @@ const CreateUnboxing: React.FC = () => {
       videoFiles.forEach((file) => {
         formData.append('videos', file);
       });
+
+      if (mediaEditSettings.length > 0) {
+        formData.append('mediaEditSettings', JSON.stringify(mediaEditSettings));
+      }
+
+      if (soundtrack.file) {
+        formData.append('soundtrack', soundtrack.file);
+        formData.append('soundtrackVolume', soundtrack.volume.toString());
+      }
 
       const response = await apiFetch('/api/posts', {
         method: 'POST',
@@ -154,6 +189,13 @@ const CreateUnboxing: React.FC = () => {
           }
         });
         return [];
+      });
+      setSoundtrack((current) => {
+        if (current.previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(current.previewUrl);
+        }
+
+        return createEmptySoundtrack();
       });
 
       navigate('/feed');
@@ -468,7 +510,7 @@ const CreateUnboxing: React.FC = () => {
             type="file"
             accept="video/*"
             capture="environment"
-            onChange={handleCameraCapture}
+            onChange={handleVideoCameraCapture}
             style={{ display: 'none' }}
           />
 
@@ -478,77 +520,86 @@ const CreateUnboxing: React.FC = () => {
 
           {/* Media Gallery */}
           {selectedMedia.length > 0 && (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
-              gap: '8px'
-            }}>
-              {selectedMedia.map((item, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    position: 'relative',
-                    paddingBottom: '100%',
-                    backgroundColor: '#f0f0f0',
-                    borderRadius: '6px',
-                    overflow: 'hidden'
-                  }}
-                >
-                  {item.kind === 'video' ? (
-                    <video
-                      src={item.preview}
-                      muted
-                      playsInline
-                      controls
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        backgroundColor: '#000'
-                      }}
-                    />
-                  ) : (
-                    <img
-                      src={item.preview}
-                      alt={`Unboxing ${idx + 1}`}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover'
-                      }}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => removeMedia(idx)}
+            <>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                gap: '8px'
+              }}>
+                {selectedMedia.map((item, idx) => (
+                  <div
+                    key={idx}
                     style={{
-                      position: 'absolute',
-                      top: '4px',
-                      right: '4px',
-                      backgroundColor: 'rgba(0,0,0,0.6)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '50%',
-                      width: '24px',
-                      height: '24px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
+                      position: 'relative',
+                      paddingBottom: '100%',
+                      backgroundColor: '#f0f0f0',
+                      borderRadius: '6px',
+                      overflow: 'hidden'
                     }}
                   >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
+                    {item.kind === 'video' ? (
+                      <video
+                        src={item.preview}
+                        muted
+                        playsInline
+                        controls
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          backgroundColor: '#000'
+                        }}
+                      />
+                    ) : (
+                      <img
+                        src={item.preview}
+                        alt={`Unboxing ${idx + 1}`}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeMedia(idx)}
+                      style={{
+                        position: 'absolute',
+                        top: '4px',
+                        right: '4px',
+                        backgroundColor: 'rgba(0,0,0,0.6)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '24px',
+                        height: '24px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <MediaComposerEditor
+                items={selectedMedia}
+                onItemsChange={setSelectedMedia}
+                soundtrack={soundtrack}
+                onSoundtrackChange={setSoundtrack}
+              />
+            </>
           )}
         </div>
 

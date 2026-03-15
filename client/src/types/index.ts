@@ -20,6 +20,35 @@ export interface Stat {
   value: number;
 }
 
+export type MediaKind = 'image' | 'video';
+export type MediaFrameStyle = 'clean' | 'polaroid' | 'cinema' | 'glow';
+export type MediaAspectRatio = 'original' | 'square' | 'portrait' | 'landscape';
+export type MediaOverlayPosition = 'top' | 'center' | 'bottom';
+
+export interface MediaEditSettings {
+  kind: MediaKind;
+  frameStyle: MediaFrameStyle;
+  aspectRatio: MediaAspectRatio;
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+  rotate: number;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  clarity: number;
+  overlayText: string;
+  overlayPosition: MediaOverlayPosition;
+  trimStart: number;
+  trimEnd: number;
+}
+
+export interface PostSoundtrack {
+  url: string;
+  originalName?: string;
+  volume?: number;
+}
+
 export interface Post {
   _id: string;
   postType: 'review' | 'unboxing' | 'general';
@@ -36,10 +65,14 @@ export interface Post {
   images?: string[];
   video?: string;
   videos?: string[];
+  mediaEditSettings?: MediaEditSettings[];
+  soundtrack?: PostSoundtrack;
   user: User;
   likes: User[];
   comments: Comment[];
   rating?: number;
+  customRating?: number;
+  customRatingName?: string;
   totalRating?: number;
   totalRatingsCount?: number;
   stats?: Stat[];

@@ -16,6 +16,166 @@ const {
 } = require('../utils/notifications');
 
 const router = express.Router();
+const DEFAULT_FRONTEND_URL = process.env.NODE_ENV === 'production'
+  ? 'https://www.instrevi.com'
+  : 'http://localhost:3000';
+
+const MEDIA_FRAME_STYLES = new Set(['clean', 'polaroid', 'cinema', 'glow']);
+const MEDIA_ASPECT_RATIOS = new Set(['original', 'square', 'portrait', 'landscape']);
+const MEDIA_OVERLAY_POSITIONS = new Set(['top', 'center', 'bottom']);
+
+const clampNumber = (value, min, max, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, parsed));
+};
+
+const resolveReviewRating = (post) => {
+  if (typeof post?.rating === 'number') {
+    return post.rating;
+  }
+
+  // Backward compatibility for posts that might have stored customRating only.
+  if (typeof post?.customRating === 'number') {
+    return post.customRating;
+  }
+
+  return null;
+};
+
+const resolveFrontendBaseUrl = () => {
+  const configuredValue = typeof process.env.FRONTEND_URL === 'string'
+    ? process.env.FRONTEND_URL.trim()
+    : '';
+
+  if (!configuredValue) {
+    return DEFAULT_FRONTEND_URL;
+  }
+
+  try {
+    const parsed = new URL(configuredValue);
+    const hasSupportedProtocol = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+
+    if (!hasSupportedProtocol) {
+      return DEFAULT_FRONTEND_URL;
+    }
+
+    return parsed.origin;
+  } catch {
+    return DEFAULT_FRONTEND_URL;
+  }
+};
+
+const frontendBaseUrl = resolveFrontendBaseUrl();
+
+const escapeHtml = (value) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const toPlainText = (value) => String(value || '')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/[\*_`~>#]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const toSnippet = (value, maxChars = 220) => {
+  const text = toPlainText(value);
+
+  if (!text) {
+    return '';
+  }
+
+  if (text.length <= maxChars) {
+    return text;
+  }
+
+  return `${text.slice(0, maxChars - 3).trim()}...`;
+};
+
+const pickShareImage = (post) => {
+  const imageCandidates = [];
+
+  if (Array.isArray(post?.images)) {
+    imageCandidates.push(...post.images.filter((url) => typeof url === 'string' && url.trim()));
+  }
+
+  if (typeof post?.image === 'string' && post.image.trim()) {
+    imageCandidates.push(post.image.trim());
+  }
+
+  const videoUrls = new Set([
+    ...(Array.isArray(post?.videos) ? post.videos : []),
+    post?.video,
+  ].filter((url) => typeof url === 'string' && url.trim()));
+
+  return imageCandidates.find((url) => !videoUrls.has(url)) || imageCandidates[0] || '';
+};
+
+const isCrawlerUserAgent = (userAgent) => /facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|discordbot|whatsapp|telegrambot|skypeuripreview|googlebot|bingbot|crawler|spider|bot/i.test(String(userAgent || ''));
+
+const sanitizeMediaEditSetting = (value, fallbackKind) => {
+  const record = value && typeof value === 'object' ? value : {};
+  const kind = fallbackKind === 'video' ? 'video' : 'image';
+  const trimStart = kind === 'video' ? clampNumber(record.trimStart, 0, 3600, 0) : 0;
+  const trimEndRaw = kind === 'video' ? clampNumber(record.trimEnd, 0, 3600, 0) : 0;
+
+  return {
+    kind,
+    frameStyle: MEDIA_FRAME_STYLES.has(record.frameStyle) ? record.frameStyle : 'clean',
+    aspectRatio: MEDIA_ASPECT_RATIOS.has(record.aspectRatio) ? record.aspectRatio : 'original',
+    zoom: clampNumber(record.zoom, 1, 2.4, 1),
+    offsetX: clampNumber(record.offsetX, -40, 40, 0),
+    offsetY: clampNumber(record.offsetY, -40, 40, 0),
+    rotate: clampNumber(record.rotate, -180, 180, 0),
+    brightness: clampNumber(record.brightness, 60, 150, 100),
+    contrast: clampNumber(record.contrast, 60, 150, 100),
+    saturation: clampNumber(record.saturation, 0, 170, 100),
+    clarity: clampNumber(record.clarity, 0, 50, 0),
+    overlayText: typeof record.overlayText === 'string' ? record.overlayText.trim().slice(0, 120) : '',
+    overlayPosition: MEDIA_OVERLAY_POSITIONS.has(record.overlayPosition) ? record.overlayPosition : 'bottom',
+    trimStart,
+    trimEnd: trimEndRaw > trimStart ? trimEndRaw : 0,
+  };
+};
+
+const buildMediaEditSettings = (rawValue, imageCount, videoCount) => {
+  let parsed = [];
+
+  if (typeof rawValue === 'string' && rawValue.trim()) {
+    try {
+      const parsedValue = JSON.parse(rawValue);
+      if (Array.isArray(parsedValue)) {
+        parsed = parsedValue;
+      }
+    } catch (error) {
+      console.error('Failed to parse mediaEditSettings:', error);
+    }
+  }
+
+  const expectedKinds = [
+    ...Array.from({ length: imageCount }, () => 'image'),
+    ...Array.from({ length: videoCount }, () => 'video'),
+  ];
+
+  return expectedKinds.map((kind, index) => sanitizeMediaEditSetting(parsed[index], kind));
+};
+
+const removeTempFile = (filePath) => {
+  if (!filePath) {
+    return;
+  }
+
+  fs.unlink(filePath, (err) => {
+    if (err) console.error('Failed to remove temp file:', err);
+  });
+};
+
 
 const canonicalizeReviewCategory = (value) => {
   if (typeof value !== 'string') return '';
@@ -86,7 +246,8 @@ const uploadPostMedia = (req, res, next) => {
     { name: 'image', maxCount: 1 },
     { name: 'images', maxCount: 10 },
     { name: 'video', maxCount: 1 },
-    { name: 'videos', maxCount: 10 }
+    { name: 'videos', maxCount: 10 },
+    { name: 'soundtrack', maxCount: 1 }
   ])(req, res, (err) => {
     if (!err) return next();
 
@@ -124,10 +285,13 @@ router.get('/', async (req, res) => {
 
     for (const post of postObjects) {
       const key = getReviewKey(post);
-      if (!key || typeof post.rating !== 'number') continue;
+      if (!key) continue;
+
+      const ratingValue = resolveReviewRating(post);
+      if (ratingValue === null) continue;
 
       const current = reviewTotals.get(key) || { totalRating: 0, totalRatingsCount: 0 };
-      current.totalRating += post.rating;
+      current.totalRating += ratingValue;
       current.totalRatingsCount += 1;
       reviewTotals.set(key, current);
     }
@@ -137,18 +301,128 @@ router.get('/', async (req, res) => {
 
       const key = getReviewKey(post);
       const aggregate = key ? reviewTotals.get(key) : null;
-      const fallbackTotal = typeof post.rating === 'number' ? post.rating : 0;
+      const fallbackRating = resolveReviewRating(post);
+      const fallbackTotal = fallbackRating === null ? 0 : fallbackRating;
 
       return {
         ...post,
         totalRating: aggregate ? aggregate.totalRating : fallbackTotal,
-        totalRatingsCount: aggregate ? aggregate.totalRatingsCount : (typeof post.rating === 'number' ? 1 : 0)
+        totalRatingsCount: aggregate ? aggregate.totalRatingsCount : (fallbackRating === null ? 0 : 1)
       };
     });
 
     res.json(postsWithTotals);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/share/:postId', async (req, res) => {
+  try {
+    const post = await Post.findOne({
+      _id: req.params.postId,
+      isDeleted: { $ne: true }
+    })
+      .populate('user', 'username')
+      .lean();
+
+    if (!post) {
+      return res.status(404).type('html').send('<!doctype html><html><head><meta charset="utf-8"><title>Post Not Found</title></head><body><h1>Post not found</h1></body></html>');
+    }
+
+    const postId = String(post._id);
+    const requestBaseUrl = `${req.protocol}://${req.get('host')}`;
+    const shareUrl = `${requestBaseUrl}/api/posts/share/${encodeURIComponent(postId)}`;
+    const openUrl = `${frontendBaseUrl}/feed#${encodeURIComponent(postId)}`;
+
+    const postTypeLabel = post.postType === 'review'
+      ? 'Review'
+      : post.postType === 'unboxing'
+        ? 'Unboxing'
+        : 'Post';
+
+    const title = typeof post.title === 'string' && post.title.trim()
+      ? post.title.trim()
+      : `${postTypeLabel} on Instrevi`;
+
+    const ratingValue = resolveReviewRating(post);
+    const ratingSigned = ratingValue === null
+      ? ''
+      : `${ratingValue > 0 ? '+' : ''}${Number(ratingValue.toFixed(2))}`;
+    const ratingStars = ratingValue === null
+      ? ''
+      : '★'.repeat(Math.min(5, Math.max(0, Math.abs(Math.round(ratingValue)))));
+
+    const snippet = toSnippet(post.caption, 240);
+    const authorName = post?.user && typeof post.user.username === 'string' && post.user.username.trim()
+      ? post.user.username.trim()
+      : 'Instrevi user';
+    const description = [
+      ratingValue !== null ? `Rating ${ratingSigned}${ratingStars ? ` ${ratingStars}` : ''}` : null,
+      snippet || `${postTypeLabel} shared by ${authorName} on Instrevi.`
+    ].filter(Boolean).join(' • ');
+
+    const imageUrl = pickShareImage(post);
+    const isCrawler = isCrawlerUserAgent(req.get('user-agent'));
+    const twitterCard = imageUrl ? 'summary_large_image' : 'summary';
+
+    const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>${escapeHtml(title)} | Instrevi</title>
+  <meta name="description" content="${escapeHtml(description)}" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Instrevi" />
+  <meta property="og:url" content="${escapeHtml(shareUrl)}" />
+  <meta property="og:title" content="${escapeHtml(title)}" />
+  <meta property="og:description" content="${escapeHtml(description)}" />
+  ${imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : ''}
+
+  <meta name="twitter:card" content="${twitterCard}" />
+  <meta name="twitter:title" content="${escapeHtml(title)}" />
+  <meta name="twitter:description" content="${escapeHtml(description)}" />
+  ${imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />` : ''}
+
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; }
+    .wrap { max-width: 640px; margin: 0 auto; padding: 28px 18px 40px; }
+    .card { background: #111827; border: 1px solid #374151; border-radius: 16px; overflow: hidden; box-shadow: 0 24px 48px rgba(0,0,0,0.35); }
+    .cover { width: 100%; height: auto; display: block; max-height: 360px; object-fit: cover; }
+    .body { padding: 16px; }
+    .kicker { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #93c5fd; font-weight: 700; margin-bottom: 8px; }
+    h1 { margin: 0 0 8px; font-size: 22px; line-height: 1.25; color: #f8fafc; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px 12px; font-size: 12px; color: #cbd5e1; margin-bottom: 10px; }
+    .summary { margin: 0; color: #e5e7eb; font-size: 14px; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .cta { margin-top: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #22d3ee; color: #0f172a; text-decoration: none; font-weight: 700; padding: 10px 16px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      ${imageUrl ? `<img class="cover" src="${escapeHtml(imageUrl)}" alt="Post preview" />` : ''}
+      <div class="body">
+        <div class="kicker">${escapeHtml(postTypeLabel)}</div>
+        <h1>${escapeHtml(title)}</h1>
+        <div class="meta">
+          ${ratingValue !== null ? `<span>Rating ${escapeHtml(ratingSigned)}${ratingStars ? ` ${escapeHtml(ratingStars)}` : ''}</span>` : ''}
+          <span>By ${escapeHtml(authorName)}</span>
+        </div>
+        <p class="summary">${escapeHtml(snippet || `${postTypeLabel} on Instrevi`)}</p>
+        <a class="cta" href="${escapeHtml(openUrl)}">Open on Instrevi</a>
+      </div>
+    </div>
+  </div>
+  ${isCrawler ? '' : `<script>setTimeout(function(){window.location.replace(${JSON.stringify(openUrl)});}, 1200);</script>`}
+</body>
+</html>`;
+
+    return res.status(200).type('html').send(html);
+  } catch (error) {
+    console.error('Share preview error:', error);
+    return res.status(500).type('html').send('<!doctype html><html><head><meta charset="utf-8"><title>Share Preview</title></head><body><h1>Unable to generate preview</h1></body></html>');
   }
 });
 
@@ -161,7 +435,7 @@ router.get('/reviews/subjects', async (req, res) => {
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 20;
 
     const reviewPosts = await Post.find({ postType: 'review', isDeleted: { $ne: true } })
-      .select('postType title subjectName subjectKey shopName category rating createdAt image')
+      .select('postType title subjectName subjectKey shopName category rating customRating createdAt image')
       .lean();
 
     const subjectsMap = new Map();
@@ -195,8 +469,9 @@ router.get('/reviews/subjects', async (req, res) => {
 
       existing.reviewCount += 1;
 
-      if (typeof post.rating === 'number') {
-        existing.ratingTotal += post.rating;
+      const ratingValue = resolveReviewRating(post);
+      if (ratingValue !== null) {
+        existing.ratingTotal += ratingValue;
         existing.ratingsCount += 1;
       }
 
@@ -316,8 +591,9 @@ router.get('/reviews/subjects/:subjectKey/reviews', async (req, res) => {
     let totalRatingsCount = 0;
 
     matchedReviews.forEach((review) => {
-      if (typeof review.rating === 'number') {
-        totalRating += review.rating;
+      const ratingValue = resolveReviewRating(review);
+      if (ratingValue !== null) {
+        totalRating += ratingValue;
         totalRatingsCount += 1;
       }
     });
@@ -381,39 +657,43 @@ router.post('/', auth, requireNotBanned, uploadPostMedia, async (req, res) => {
       rating,
       stats,
       tags,
-      friendsOrAnyone
+      friendsOrAnyone,
+      mediaEditSettings,
+      soundtrackVolume,
+      customRating,
+      customRatingName
     } = req.body;
+    const resolvedPostType = postType || 'general';
     const resolvedCategory = canonicalizeReviewCategory(category || reviewCategory);
     
     const multiImageFiles = req.files && req.files.images ? req.files.images : [];
     const singleImageFiles = req.files && req.files.image ? req.files.image : [];
     const singleVideoFiles = req.files && req.files.video ? req.files.video : [];
     const multiVideoFiles = req.files && req.files.videos ? req.files.videos : [];
+    const soundtrackFiles = req.files && req.files.soundtrack ? req.files.soundtrack : [];
     const imageFiles = [...singleImageFiles, ...multiImageFiles];
     const videoFiles = [...singleVideoFiles, ...multiVideoFiles];
+    const storedMediaEditSettings = buildMediaEditSettings(mediaEditSettings, imageFiles.length, videoFiles.length);
 
     if (imageFiles.length === 0 && videoFiles.length === 0) {
       return res.status(400).json({ message: 'At least one photo or video is required' });
     }
 
-    if ((postType || 'general') === 'review' && !resolvedCategory) {
+    if (resolvedPostType === 'review' && !resolvedCategory) {
       return res.status(400).json({ message: 'Review category is required' });
     }
 
     // Upload media to Cloudinary
     const uploadedImages = [];
     const uploadedVideos = [];
+    let uploadedSoundtrack = null;
     try {
       for (const file of imageFiles) {
         const result = await cloudinary.uploader.upload(file.path, {
           resource_type: 'image'
         });
         uploadedImages.push(result.secure_url);
-
-        // Remove temporary file from server
-        fs.unlink(file.path, (err) => {
-          if (err) console.error('Failed to remove temp file:', err);
-        });
+        removeTempFile(file.path);
       }
 
       for (const file of videoFiles) {
@@ -421,11 +701,20 @@ router.post('/', auth, requireNotBanned, uploadPostMedia, async (req, res) => {
           resource_type: 'video'
         });
         uploadedVideos.push(result.secure_url);
+        removeTempFile(file.path);
+      }
 
-        // Remove temporary file from server
-        fs.unlink(file.path, (err) => {
-          if (err) console.error('Failed to remove temp file:', err);
+      if (soundtrackFiles[0]) {
+        const soundtrackFile = soundtrackFiles[0];
+        const result = await cloudinary.uploader.upload(soundtrackFile.path, {
+          resource_type: 'video'
         });
+        uploadedSoundtrack = {
+          url: result.secure_url,
+          originalName: typeof soundtrackFile.originalname === 'string' ? soundtrackFile.originalname.trim().slice(0, 200) : '',
+          volume: clampNumber(soundtrackVolume, 0, 100, 70)
+        };
+        removeTempFile(soundtrackFile.path);
       }
     } catch (uploadError) {
       console.error('Cloudinary upload error:', uploadError);
@@ -437,7 +726,7 @@ router.post('/', auth, requireNotBanned, uploadPostMedia, async (req, res) => {
       caption,
       image: uploadedImages[0] || uploadedVideos[0],
       user: req.user.userId,
-      postType: postType || 'general'
+      postType: resolvedPostType
     };
 
     // Add optional fields based on post type
@@ -450,6 +739,8 @@ router.post('/', auth, requireNotBanned, uploadPostMedia, async (req, res) => {
     if (uploadedVideos.length > 0) postData.video = uploadedVideos[0];
     if (uploadedVideos.length > 0) postData.videos = uploadedVideos;
     if (uploadedImages.length > 1) postData.images = uploadedImages;
+    if (storedMediaEditSettings.length > 0) postData.mediaEditSettings = storedMediaEditSettings;
+    if (uploadedSoundtrack) postData.soundtrack = uploadedSoundtrack;
 
     const parsedKeywordTags = parseKeywordTags(tags);
     if (parsedKeywordTags.length > 0) {
@@ -457,7 +748,7 @@ router.post('/', auth, requireNotBanned, uploadPostMedia, async (req, res) => {
     }
 
     // Review-specific fields
-    if (postType === 'review') {
+    if (resolvedPostType === 'review') {
       const resolvedSubjectName = [subjectName, shopName, title]
         .find((value) => typeof value === 'string' && value.trim());
 
@@ -467,8 +758,17 @@ router.post('/', auth, requireNotBanned, uploadPostMedia, async (req, res) => {
       }
 
       if (rating !== undefined && rating !== null && rating !== '') {
-        postData.rating = parseInt(rating, 10);
+        postData.rating = clampNumber(rating, -5, 5, 0);
       }
+
+      if (customRating !== undefined && customRating !== null && customRating !== '') {
+        postData.customRating = clampNumber(customRating, -5, 5, 0);
+      }
+
+      if (typeof customRatingName === 'string' && customRatingName.trim()) {
+        postData.customRatingName = customRatingName.trim().slice(0, 80);
+      }
+
       if (stats) {
         try {
           postData.stats = JSON.parse(stats);

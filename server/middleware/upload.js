@@ -20,14 +20,18 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   const isImage = file.mimetype.startsWith('image/');
   const isVideo = file.mimetype.startsWith('video/');
+  const isAudio = file.mimetype.startsWith('audio/');
   const isVideoField = file.fieldname === 'video' || file.fieldname === 'videos';
+  const isAudioField = file.fieldname === 'soundtrack';
 
   if (isImage) {
     cb(null, true);
   } else if (isVideoField && isVideo) {
     cb(null, true);
+  } else if (isAudioField && isAudio) {
+    cb(null, true);
   } else {
-    cb(new Error('Only image files are allowed for this field (video is allowed only in the video field)'), false);
+    cb(new Error('Only image files are allowed for this field (video is allowed only in video fields and audio only in soundtrack)'), false);
   }
 };
 

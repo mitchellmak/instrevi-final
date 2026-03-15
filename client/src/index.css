@@ -805,10 +805,11 @@ code {
   display: flex;
   overflow-x: auto;
   overflow-y: hidden;
-  scroll-snap-type: x proximity;
+  scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   touch-action: manipulation;
+  overscroll-behavior-x: contain;
 }
 
 .post-media-carousel::-webkit-scrollbar {
@@ -820,13 +821,14 @@ code {
   width: 100%;
   height: 100%;
   scroll-snap-align: start;
-  scroll-snap-stop: always;
+  scroll-snap-stop: normal;
   display: flex;
   align-items: center;
   justify-content: center;
   background-color: #070709;
   position: relative;
   overflow: hidden;
+  contain: paint;
 }
 
 .post-media-slide-backdrop {
@@ -834,11 +836,17 @@ code {
   inset: -8%;
   background-position: center;
   background-size: cover;
-  filter: blur(18px) saturate(1.15);
+  filter: blur(14px) saturate(1.12);
   transform: scale(1.08);
   opacity: 0.68;
   z-index: 0;
   pointer-events: none;
+  will-change: transform, opacity, filter;
+}
+
+.post-media-section--scrolling .post-media-slide-backdrop {
+  filter: blur(6px) saturate(1.04);
+  opacity: 0.5;
 }
 
 .post-media-section {
@@ -1161,6 +1169,7 @@ code {
   background: #000;
   position: relative;
   overflow: hidden;
+  contain: paint;
 }
 
 .post-media-overlay-slide-backdrop {
@@ -1168,11 +1177,17 @@ code {
   inset: -10%;
   background-position: center;
   background-size: cover;
-  filter: blur(24px) saturate(1.16);
+  filter: blur(18px) saturate(1.13);
   transform: scale(1.1);
   opacity: 0.6;
   z-index: 0;
   pointer-events: none;
+  will-change: transform, opacity, filter;
+}
+
+.post-media-overlay--scrolling .post-media-overlay-slide-backdrop {
+  filter: blur(8px) saturate(1.06);
+  opacity: 0.46;
 }
 
 .post-media-overlay-dots {
