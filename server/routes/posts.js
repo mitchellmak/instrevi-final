@@ -33,6 +33,15 @@ const clampNumber = (value, min, max, fallback) => {
   return Math.min(max, Math.max(min, parsed));
 };
 
+const roundRatingValue = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Math.round(parsed);
+};
+
 const resolveReviewRating = (post) => {
   if (typeof post?.rating === 'number') {
     return post.rating;
@@ -348,7 +357,7 @@ router.get('/share/:postId', async (req, res) => {
     const ratingValue = resolveReviewRating(post);
     const ratingSigned = ratingValue === null
       ? ''
-      : `${ratingValue > 0 ? '+' : ''}${Number(ratingValue.toFixed(2))}`;
+      : `${roundRatingValue(ratingValue) > 0 ? '+' : ''}${roundRatingValue(ratingValue)}`;
     const ratingStars = ratingValue === null
       ? ''
       : '★'.repeat(Math.min(5, Math.max(0, Math.abs(Math.round(ratingValue)))));
@@ -493,7 +502,7 @@ router.get('/reviews/subjects', async (req, res) => {
         category: subject.category,
         reviewCount: subject.reviewCount,
         globalRating: subject.ratingsCount > 0
-          ? Number((subject.ratingTotal / subject.ratingsCount).toFixed(2))
+          ? roundRatingValue(subject.ratingTotal / subject.ratingsCount)
           : 0,
         ratingsCount: subject.ratingsCount,
         latestReviewAt: subject.latestReviewAt,
@@ -599,7 +608,7 @@ router.get('/reviews/subjects/:subjectKey/reviews', async (req, res) => {
     });
 
     const globalRating = totalRatingsCount > 0
-      ? Number((totalRating / totalRatingsCount).toFixed(2))
+      ? roundRatingValue(totalRating / totalRatingsCount)
       : 0;
 
     const totalItems = matchedReviews.length;

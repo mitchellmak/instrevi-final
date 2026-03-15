@@ -24,6 +24,8 @@ type SubjectReviewResponse = {
   reviews?: Post[];
 };
 
+const formatWholeRating = (value: number) => Math.round(Number(value) || 0);
+
 const Reviews: React.FC = () => {
   const { token, user } = useAuth();
   const isBanned = Boolean(user?.isBanned);
@@ -274,7 +276,7 @@ const Reviews: React.FC = () => {
                   {subject.category} • {subject.reviewCount} review{subject.reviewCount === 1 ? '' : 's'}
                 </div>
                 <div style={{ color: '#2e7d32', fontSize: '12px', fontWeight: 600, marginTop: '4px' }}>
-                  Global rating: {Number(subject.globalRating || 0).toFixed(2)} / 5
+                  Global rating: {formatWholeRating(subject.globalRating || 0)} / 5
                 </div>
               </button>
             );
@@ -295,7 +297,7 @@ const Reviews: React.FC = () => {
               </div>
               <h2 style={{ color: 'var(--brand-accent)', fontSize: '22px', marginBottom: '8px' }}>{selectedSubject.subjectName}</h2>
               <div style={{ color: '#2e7d32', fontSize: '15px', fontWeight: 700, marginBottom: '4px' }}>
-                Global Rating: {Number(selectedSubject.globalRating || 0).toFixed(2)} / 5
+                Global Rating: {formatWholeRating(selectedSubject.globalRating || 0)} / 5
               </div>
               <div style={{ color: 'var(--brand-muted)', fontSize: '13px' }}>
                 Based on {selectedSubject.ratingsCount} rating{selectedSubject.ratingsCount === 1 ? '' : 's'} across {selectedSubject.reviewCount} review{selectedSubject.reviewCount === 1 ? '' : 's'}.

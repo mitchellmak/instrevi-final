@@ -375,7 +375,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
       : (typeof post.customRating === 'number' ? post.customRating : null);
     const ratingText = ratingValue === null
       ? ''
-      : `Rating ${ratingValue > 0 ? '+' : ''}${Number(ratingValue.toFixed(2))}`;
+      : `Rating ${formatSignedRating(ratingValue)}`;
     const summaryText = (post.caption || '').replace(/\s+/g, ' ').trim();
     const snippet = summaryText.length > 220 ? `${summaryText.slice(0, 217)}...` : summaryText;
     const shareText = [ratingText, snippet || 'Check out this post on Instrevi'].filter(Boolean).join(' • ');
@@ -422,14 +422,16 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   };
 
   const getRatingColor = (value: number) => {
-    if (value > 0) return '#2e7d32';
-    if (value < 0) return '#c62828';
+    const roundedValue = Math.round(value);
+    if (roundedValue > 0) return '#2e7d32';
+    if (roundedValue < 0) return '#c62828';
     return '#757575';
   };
 
   const formatSignedRating = (value: number) => {
-    if (value > 0) return `+${value}`;
-    return `${value}`;
+    const roundedValue = Math.round(value);
+    if (roundedValue > 0) return `+${roundedValue}`;
+    return `${roundedValue}`;
   };
 
   const renderRatingStars = (value: number, color: string) => {
@@ -869,7 +871,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     ? post.totalRatingsCount
     : (userRatingValue === null ? 0 : 1);
   const globalAverageRating = totalRatingsCountValue > 0
-    ? Number((totalRatingValue / totalRatingsCountValue).toFixed(2))
+    ? Math.round(totalRatingValue / totalRatingsCountValue)
     : 0;
   const normalizedCustomRatingName = typeof post.customRatingName === 'string'
     ? post.customRatingName.trim()

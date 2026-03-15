@@ -71,7 +71,7 @@ const CreateReview: React.FC = () => {
   const [includeServiceReview, setIncludeServiceReview] = useState(false);
   const [includeCustomRating, setIncludeCustomRating] = useState(false);
   const [customRating, setCustomRating] = useState(0);
-  const [customRatingName, setCustomRatingName] = useState('Custom rating');
+  const [customRatingName, setCustomRatingName] = useState('');
 
   // Auto-calculate overall rating from the 5 aspects
   useEffect(() => {
@@ -100,7 +100,7 @@ const CreateReview: React.FC = () => {
 
   const overallAspectCount = 5;
   const effectiveOverallRating = includeCustomRating
-    ? Number((((baseOverallRating * overallAspectCount) + customRating) / (overallAspectCount + 1)).toFixed(2))
+    ? Math.round(((baseOverallRating * overallAspectCount) + customRating) / (overallAspectCount + 1))
     : baseOverallRating;
 
   const normalizedCustomRatingName = customRatingName.trim() || 'Custom rating';
@@ -2127,11 +2127,6 @@ const CreateReview: React.FC = () => {
                   }}
                 />
                 <span style={{ fontSize: '11px', color: '#2e7d32', fontWeight: '600' }}>+5</span>
-              </div>
-
-              <div style={{ marginTop: '8px', fontSize: '12px', color: '#4b5563' }}>
-                Base overall: {baseOverallRating > 0 ? `+${baseOverallRating}` : baseOverallRating} ·
-                User overall: {effectiveOverallRating > 0 ? `+${effectiveOverallRating}` : effectiveOverallRating}
               </div>
             </div>
           )}
