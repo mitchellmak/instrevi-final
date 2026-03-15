@@ -103,7 +103,18 @@ const CreateReview: React.FC = () => {
     ? Math.round(((baseOverallRating * overallAspectCount) + customRating) / (overallAspectCount + 1))
     : baseOverallRating;
 
+  const overallRatingSummary = reviewCategory === 'Products'
+    ? 'Average of Quality, Durability, Performance, Design, and Value for Money'
+    : reviewCategory === 'Service'
+      ? 'Average of Courtesy, Professionalism, Responsiveness, Efficiency, and Problem Resolution'
+      : reviewCategory === 'Food'
+        ? 'Average of Taste, Texture, Freshness, Presentation, and Value for Money'
+        : 'Average of Cleanliness, Maintenance, Location, Amenities, and Value for Money';
+
   const normalizedCustomRatingName = customRatingName.trim() || 'Custom rating';
+  const effectiveOverallSummary = includeCustomRating
+    ? `${overallRatingSummary}. Includes ${normalizedCustomRatingName}.`
+    : overallRatingSummary;
 
   const ratingTargetName = (
     reviewCategory === 'Establishment'
@@ -1524,35 +1535,6 @@ const CreateReview: React.FC = () => {
                 <span style={{ fontSize: '11px', color: '#2e7d32', fontWeight: '600' }}>+5</span>
               </div>
             </div>
-
-            {/* Overall (Auto-calculated) */}
-            <div style={{ 
-              marginTop: '20px',
-              padding: '16px', 
-              backgroundColor: '#f5f5f5', 
-              borderRadius: '8px',
-              border: '2px solid #262626'
-            }}>
-              <div style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600', color: '#262626' }}>
-                Overall Rating (Auto-calculated)
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ 
-                  fontSize: '48px', 
-                  fontWeight: '700', 
-                  color: overallRating < 0 ? '#c62828' : overallRating === 0 ? '#757575' : '#2e7d32',
-                  fontFamily: "'Poppins', sans-serif"
-                }}>
-                  {overallRating > 0 ? `+${overallRating}` : overallRating}
-                </span>
-                <div style={{ fontSize: '14px', color: '#737373' }}>
-                  out of 5
-                </div>
-              </div>
-              <div style={{ fontSize: '12px', color: '#737373', marginTop: '8px' }}>
-                Average of Quality, Durability, Performance, Design, and Value for Money
-              </div>
-            </div>
           </div>
         )}
 
@@ -1752,35 +1734,6 @@ const CreateReview: React.FC = () => {
                 <span style={{ fontSize: '11px', color: '#2e7d32', fontWeight: '600' }}>+5</span>
               </div>
             </div>
-
-            {/* Overall (Auto-calculated) */}
-            <div style={{ 
-              marginTop: '20px',
-              padding: '16px', 
-              backgroundColor: '#f5f5f5', 
-              borderRadius: '8px',
-              border: '2px solid #262626'
-            }}>
-              <div style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600', color: '#262626' }}>
-                Overall Rating (Auto-calculated)
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ 
-                  fontSize: '48px', 
-                  fontWeight: '700', 
-                  color: serviceOverallRating < 0 ? '#c62828' : serviceOverallRating === 0 ? '#757575' : '#2e7d32',
-                  fontFamily: "'Poppins', sans-serif"
-                }}>
-                  {serviceOverallRating > 0 ? `+${serviceOverallRating}` : serviceOverallRating}
-                </span>
-                <div style={{ fontSize: '14px', color: '#737373' }}>
-                  out of 5
-                </div>
-              </div>
-              <div style={{ fontSize: '12px', color: '#737373', marginTop: '8px' }}>
-                Average of Courtesy, Professionalism, Responsiveness, Efficiency, and Problem Resolution
-              </div>
-            </div>
           </div>
         )}
 
@@ -1848,15 +1801,6 @@ const CreateReview: React.FC = () => {
                 <span style={{ fontSize: '11px', color: '#2e7d32', fontWeight: '600' }}>+5</span>
               </div>
             </div>
-            {/* Overall */}
-            <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px', border: '2px solid #262626' }}>
-              <div style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600', color: '#262626' }}>Overall Rating (Auto-calculated)</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '48px', fontWeight: '700', color: foodOverallRating < 0 ? '#c62828' : foodOverallRating === 0 ? '#757575' : '#2e7d32', fontFamily: "'Poppins', sans-serif" }}>{foodOverallRating > 0 ? `+${foodOverallRating}` : foodOverallRating}</span>
-                <div style={{ fontSize: '14px', color: '#737373' }}>out of 5</div>
-              </div>
-              <div style={{ fontSize: '12px', color: '#737373', marginTop: '8px' }}>Average of Taste, Texture, Freshness, Presentation, and Value for Money</div>
-            </div>
           </div>
         )}
 
@@ -1923,15 +1867,6 @@ const CreateReview: React.FC = () => {
                 <input type="range" min="-5" max="5" step="1" value={valueForMoneyRating} onChange={(e) => setValueForMoneyRating(Number(e.target.value))} style={{ flex: 1, height: '6px', borderRadius: '3px', background: `linear-gradient(to right, #c62828 0%, #757575 50%, #2e7d32 100%)`, outline: 'none', cursor: 'pointer' }} />
                 <span style={{ fontSize: '11px', color: '#2e7d32', fontWeight: '600' }}>+5</span>
               </div>
-            </div>
-            {/* Overall */}
-            <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px', border: '2px solid #262626' }}>
-              <div style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600', color: '#262626' }}>Overall Rating (Auto-calculated)</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '48px', fontWeight: '700', color: placesOverallRating < 0 ? '#c62828' : placesOverallRating === 0 ? '#757575' : '#2e7d32', fontFamily: "'Poppins', sans-serif" }}>{placesOverallRating > 0 ? `+${placesOverallRating}` : placesOverallRating}</span>
-                <div style={{ fontSize: '14px', color: '#737373' }}>out of 5</div>
-              </div>
-              <div style={{ fontSize: '12px', color: '#737373', marginTop: '8px' }}>Average of Cleanliness, Maintenance, Location, Amenities, and Value for Money</div>
             </div>
 
             {/* Include Service Review Checkbox */}
@@ -2022,15 +1957,6 @@ const CreateReview: React.FC = () => {
                     <input type="range" min="-5" max="5" step="1" value={problemResolutionRating} onChange={(e) => setProblemResolutionRating(Number(e.target.value))} style={{ flex: 1, height: '6px', borderRadius: '3px', background: `linear-gradient(to right, #c62828 0%, #757575 50%, #2e7d32 100%)`, outline: 'none', cursor: 'pointer' }} />
                     <span style={{ fontSize: '11px', color: '#2e7d32', fontWeight: '600' }}>+5</span>
                   </div>
-                </div>
-                {/* Service Overall */}
-                <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px', border: '2px solid #262626' }}>
-                  <div style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600', color: '#262626' }}>Service Overall Rating (Auto-calculated)</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '48px', fontWeight: '700', color: serviceOverallRating < 0 ? '#c62828' : serviceOverallRating === 0 ? '#757575' : '#2e7d32', fontFamily: "'Poppins', sans-serif" }}>{serviceOverallRating > 0 ? `+${serviceOverallRating}` : serviceOverallRating}</span>
-                    <div style={{ fontSize: '14px', color: '#737373' }}>out of 5</div>
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#737373', marginTop: '8px' }}>Average of Courtesy, Professionalism, Responsiveness, Efficiency, and Problem Resolution</div>
                 </div>
               </div>
             )}
@@ -2131,6 +2057,60 @@ const CreateReview: React.FC = () => {
             </div>
           )}
         </div>
+
+        <div style={{
+          marginBottom: '20px',
+          padding: '16px',
+          backgroundColor: '#f5f5f5',
+          borderRadius: '8px',
+          border: '2px solid #262626'
+        }}>
+          <div style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600', color: '#262626' }}>
+            Overall Rating (Auto-calculated)
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{
+              fontSize: '48px',
+              fontWeight: '700',
+              color: effectiveOverallRating < 0 ? '#c62828' : effectiveOverallRating === 0 ? '#757575' : '#2e7d32',
+              fontFamily: "'Poppins', sans-serif"
+            }}>
+              {effectiveOverallRating > 0 ? `+${effectiveOverallRating}` : effectiveOverallRating}
+            </span>
+            <div style={{ fontSize: '14px', color: '#737373' }}>out of 5</div>
+          </div>
+          <div style={{ fontSize: '12px', color: '#737373', marginTop: '8px' }}>
+            {effectiveOverallSummary}
+          </div>
+        </div>
+
+        {reviewCategory === 'Establishment' && includeServiceReview && (
+          <div style={{
+            marginBottom: '20px',
+            padding: '16px',
+            backgroundColor: '#f5f5f5',
+            borderRadius: '8px',
+            border: '2px solid #262626'
+          }}>
+            <div style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600', color: '#262626' }}>
+              Service Overall Rating (Auto-calculated)
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{
+                fontSize: '48px',
+                fontWeight: '700',
+                color: serviceOverallRating < 0 ? '#c62828' : serviceOverallRating === 0 ? '#757575' : '#2e7d32',
+                fontFamily: "'Poppins', sans-serif"
+              }}>
+                {serviceOverallRating > 0 ? `+${serviceOverallRating}` : serviceOverallRating}
+              </span>
+              <div style={{ fontSize: '14px', color: '#737373' }}>out of 5</div>
+            </div>
+            <div style={{ fontSize: '12px', color: '#737373', marginTop: '8px' }}>
+              Average of Courtesy, Professionalism, Responsiveness, Efficiency, and Problem Resolution
+            </div>
+          </div>
+        )}
 
         {/* Submit Button */}
         <button
