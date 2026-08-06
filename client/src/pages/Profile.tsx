@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Post } from '../types';
 import { apiFetch } from '../utils/apiFetch';
+import { getCloudinaryDeliveryUrl } from '../utils/cloudinary';
 import UserAvatar from '../components/UserAvatar';
 
 type UserRef = {
@@ -582,13 +583,13 @@ const Profile: React.FC = () => {
                 <div key={`${mediaItem.url}-profile-overlay-${mediaIndex}`} className="post-media-overlay-slide">
                   {mediaItem.kind === 'image' ? (
                     <img
-                      src={mediaItem.url}
+                      src={getCloudinaryDeliveryUrl(mediaItem.url, 'image')}
                       alt={getOverlayTitle(activePost)}
                       className="post-media-overlay-asset"
                     />
                   ) : (
                     <video
-                      src={mediaItem.url}
+                      src={getCloudinaryDeliveryUrl(mediaItem.url, 'video')}
                       controls
                       autoPlay={mediaIndex === activeMediaIndex}
                       playsInline
@@ -772,13 +773,13 @@ const Profile: React.FC = () => {
                   {preview ? (
                     preview.kind === 'image' ? (
                       <img
-                        src={preview.url}
+                        src={getCloudinaryDeliveryUrl(preview.url, 'image')}
                         alt={post.title || post.caption || 'Post'}
                         className="profile-post-media"
                       />
                     ) : (
                       <video
-                        src={preview.url}
+                        src={getCloudinaryDeliveryUrl(preview.url, 'video')}
                         className="profile-post-media"
                         muted
                         playsInline

@@ -8,6 +8,7 @@ import SoundtrackPlayer from './SoundtrackPlayer';
 import { formatRichTextToHtml } from '../utils/richText';
 import { useAuth } from '../hooks/useAuth';
 import { API_BASE } from '../utils/apiBase';
+import { getCloudinaryDeliveryUrl } from '../utils/cloudinary';
 import {
   getAspectRatioValue,
   getFrameSurfaceStyle,
@@ -489,6 +490,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   const activeMedia = mediaItems[activeMediaIndex] || null;
 
   const renderStyledMediaAsset = (item: PostMediaItem, index: number, mode: 'card' | 'overlay') => {
+    const deliveryUrl = getCloudinaryDeliveryUrl(item.url, item.kind);
     const frameSurface = getFrameSurfaceStyle(item.edit);
     const aspectRatio = getAspectRatioValue(item.edit.aspectRatio);
     const assetStyle: React.CSSProperties = {
@@ -538,7 +540,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
         <div style={canvasStyle}>
           {item.kind === 'video' ? (
             <EditedVideo
-              src={item.url}
+              src={deliveryUrl}
               edit={item.edit}
               playsInline
               preload="metadata"
@@ -555,11 +557,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
             <>
               <div
                 className={mode === 'overlay' ? 'post-media-overlay-slide-backdrop' : 'post-media-slide-backdrop'}
-                style={{ backgroundImage: `url(${item.url})` }}
+                style={{ backgroundImage: `url(${deliveryUrl})` }}
                 aria-hidden="true"
               />
               <img
-                src={item.url}
+                src={deliveryUrl}
                 alt={post.title || post.caption || 'Post media'}
                 className={mode === 'overlay' ? 'post-media-overlay-asset post-media-overlay-asset--image' : 'post-media-asset post-media-asset--image'}
                 onLoad={(event) => {

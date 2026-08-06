@@ -5,6 +5,7 @@ import UserAvatar from '../components/UserAvatar';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../utils/apiFetch';
+import { getCloudinaryDeliveryUrl } from '../utils/cloudinary';
 
 type UserRef = {
   id?: string;
@@ -63,12 +64,29 @@ const extractUniqueIds = (items: unknown): string[] => {
   return Array.from(ids);
 };
 
+const getTopRailPostTitle = (post: Post): string => {
+  const explicitTitle = typeof post.title === 'string' ? post.title.trim() : '';
+  if (explicitTitle) return explicitTitle;
+
+  const fallbackSubject = [post.subjectName, post.shopName, post.category]
+    .find((value) => typeof value === 'string' && value.trim());
+  if (fallbackSubject) return fallbackSubject.trim();
+
+  const caption = typeof post.caption === 'string' ? post.caption.trim() : '';
+  if (caption) {
+    return caption.length > 34 ? `${caption.slice(0, 34).trim()}...` : caption;
+  }
+
+  return post.postType === 'unboxing' ? 'Unboxing post' : 'Review post';
+};
+
 const Feed: React.FC = () => {
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [feedError, setFeedError] = useState('');
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [viewedStripPostIds, setViewedStripPostIds] = useState<string[]>([]);
   const [relationshipIds, setRelationshipIds] = useState<{ friendIds: string[]; followingIds: string[] }>({
@@ -329,17 +347,37 @@ const Feed: React.FC = () => {
     [orderedRecentPosters, viewedStripPostIds]
   );
 
+  const friendRecentPosters = useMemo(
+    () => visibleRecentPosters.filter((entry) => entry.group === 'friend'),
+    [visibleRecentPosters]
+  );
+
+  const latestOtherRecentPosters = useMemo(
+    () => (
+      visibleRecentPosters
+        .filter((entry) => entry.group !== 'friend')
+        .sort((a, b) => b.latestPostTime - a.latestPostTime)
+    ),
+    [visibleRecentPosters]
+  );
+
   const fetchPosts = async () => {
+    setFeedError('');
+
     try {
       const response = await apiFetch('/api/posts');
+
       if (response.ok) {
         const data = await response.json();
         setPosts(Array.isArray(data) ? data : []);
       } else {
+        const errorText = await response.text();
+        setFeedError(errorText || 'Unable to load posts right now.');
         setPosts([]);
       }
     } catch (error) {
       console.error('Error fetching posts:', error);
+      setFeedError(error instanceof Error ? error.message : 'Unable to load posts right now.');
       setPosts([]);
     } finally {
       setLoading(false);
@@ -418,6 +456,23 @@ const Feed: React.FC = () => {
 
   return (
     <div className="feed-page feed-page--snap">
+      {feedError && (
+        <div
+          style={{
+            margin: '16px',
+            padding: '12px 14px',
+            borderRadius: '10px',
+            border: '1px solid #f1b4b4',
+            background: '#fff4f4',
+            color: '#9f1d1d',
+            fontSize: '13px',
+            lineHeight: 1.5
+          }}
+        >
+          {feedError}
+        </div>
+      )}
+
       {showMobileSearch && (
         <div className="feed-mobile-search">
           <input
@@ -439,37 +494,124 @@ const Feed: React.FC = () => {
         </div>
       )}
 
-      {visibleRecentPosters.length > 0 && (
-        <div className="recent-posters-strip" aria-label="People who recently posted">
-          <div className="recent-posters-track">
-            {visibleRecentPosters.map((entry) => {
-              const isUnboxing = entry.latestPost.postType === 'unboxing';
-              const username = entry.user.username || 'User';
+      {(friendRecentPosters.length > 0 || latestOtherRecentPosters.length > 0) && (
+        <section className="feed-top-rail-combined" aria-label="Recent posts by friends and other users">
+          <div className="feed-top-pane" aria-label="Friends latest posts">
+            <div className="feed-top-rail-header">
+              <h3>Friends</h3>
+            </div>
+            <div className="feed-top-rail-track">
+              {friendRecentPosters.length === 0 ? (
+                <div className="feed-top-rail-empty">No friend posts yet</div>
+              ) : (
+                friendRecentPosters.map((entry) => {
+                  const isUnboxing = entry.latestPost.postType === 'unboxing';
+                  const username = entry.user.username || 'User';
+                  const postTitle = getTopRailPostTitle(entry.latestPost);
+                  const previewSource = entry.latestPost.image || (Array.isArray(entry.latestPost.images) ? entry.latestPost.images[0] : '') || '';
+                  const previewImage = previewSource ? getCloudinaryDeliveryUrl(previewSource, 'image') : '';
 
-              return (
-                <button
-                  type="button"
-                  key={entry.userId}
-                  className="recent-poster-item"
-                  aria-label={`Open ${username} recent post`}
-                  onClick={() => openRecentPosterPost(entry.latestPost._id)}
-                >
-                  <div className={`recent-poster-avatar-wrap recent-poster-avatar-wrap--${entry.group}`}>
-                    <UserAvatar
-                      user={entry.user as unknown as UserRef}
-                      size={52}
-                      alt={username}
-                    />
-                    <span className={`recent-poster-pill ${isUnboxing ? 'recent-poster-pill--unboxing' : 'recent-poster-pill--review'}`}>
-                      {isUnboxing ? 'Unboxing' : 'Review'}
-                    </span>
-                    <span className="recent-poster-name" title={username}>{username}</span>
-                  </div>
-                </button>
-              );
-            })}
+                  return (
+                    <button
+                      type="button"
+                      key={`friend-${entry.userId}`}
+                      className="feed-top-post-card"
+                      aria-label={`Open ${username} recent post`}
+                      onClick={() => openRecentPosterPost(entry.latestPost._id)}
+                    >
+                      <div className="feed-top-post-media-wrap">
+                        {previewImage ? (
+                          <img
+                            src={previewImage}
+                            alt={`${username} recent post`}
+                            className="feed-top-post-media"
+                          />
+                        ) : (
+                          <div className="feed-top-post-media feed-top-post-media--fallback">No Image</div>
+                        )}
+
+                        <span className={`feed-top-post-pill ${isUnboxing ? 'feed-top-post-pill--unboxing' : 'feed-top-post-pill--review'}`}>
+                          {isUnboxing ? 'Unboxing' : 'Review'}
+                        </span>
+
+                        <div className="feed-top-post-meta">
+                          <UserAvatar
+                            user={entry.user as unknown as UserRef}
+                            size={20}
+                            alt={username}
+                          />
+                          <div className="feed-top-post-meta-text">
+                            <span className="feed-top-post-name" title={username}>{username}</span>
+                            <span className="feed-top-post-title" title={postTitle}>{postTitle}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </div>
-        </div>
+
+          <div className="feed-top-pane-separator" aria-hidden="true" />
+
+          <div className="feed-top-pane" aria-label="Latest posts by other users">
+            <div className="feed-top-rail-header">
+              <h3>Latest</h3>
+            </div>
+            <div className="feed-top-rail-track">
+              {latestOtherRecentPosters.length === 0 ? (
+                <div className="feed-top-rail-empty">No latest posts yet</div>
+              ) : (
+                latestOtherRecentPosters.map((entry) => {
+                  const isUnboxing = entry.latestPost.postType === 'unboxing';
+                  const username = entry.user.username || 'User';
+                  const postTitle = getTopRailPostTitle(entry.latestPost);
+                  const previewSource = entry.latestPost.image || (Array.isArray(entry.latestPost.images) ? entry.latestPost.images[0] : '') || '';
+                  const previewImage = previewSource ? getCloudinaryDeliveryUrl(previewSource, 'image') : '';
+
+                  return (
+                    <button
+                      type="button"
+                      key={`latest-${entry.userId}`}
+                      className="feed-top-post-card"
+                      aria-label={`Open ${username} recent post`}
+                      onClick={() => openRecentPosterPost(entry.latestPost._id)}
+                    >
+                      <div className="feed-top-post-media-wrap">
+                        {previewImage ? (
+                          <img
+                            src={previewImage}
+                            alt={`${username} recent post`}
+                            className="feed-top-post-media"
+                          />
+                        ) : (
+                          <div className="feed-top-post-media feed-top-post-media--fallback">No Image</div>
+                        )}
+
+                        <span className={`feed-top-post-pill ${isUnboxing ? 'feed-top-post-pill--unboxing' : 'feed-top-post-pill--review'}`}>
+                          {isUnboxing ? 'Unboxing' : 'Review'}
+                        </span>
+
+                        <div className="feed-top-post-meta">
+                          <UserAvatar
+                            user={entry.user as unknown as UserRef}
+                            size={20}
+                            alt={username}
+                          />
+                          <div className="feed-top-post-meta-text">
+                            <span className="feed-top-post-name" title={username}>{username}</span>
+                            <span className="feed-top-post-title" title={postTitle}>{postTitle}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </section>
       )}
 
       {filteredPosts.length === 0 ? (

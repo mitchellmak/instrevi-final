@@ -202,7 +202,7 @@ router.get('/overview', async (req, res) => {
       Post.countDocuments({ postType: 'review' }),
       Post.countDocuments({ postType: 'unboxing' }),
       User.countDocuments({ isBanned: true }),
-      Report.countDocuments({ status: { $in: ['open', 'reviewing'] } }),
+      Report.countDocuments({ status: 'open' }),
       Post.aggregate([
         {
           $group: {

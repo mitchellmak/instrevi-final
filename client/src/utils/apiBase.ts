@@ -9,10 +9,8 @@ const directBackendBase = isLoopbackHost
   ? 'http://localhost:5000'
   : `http://${hostname}:5000`;
 
-export const API_BASE = process.env.REACT_APP_API_URL || (
-  isLocalOrLan ? '' : 'https://api.instrevi.com'
-);
+export const API_BASE = process.env.REACT_APP_API_URL || 'https://api.instrevi.com';
 
-export const API_FALLBACK_BASE = hasEnvOverride
+export const API_FALLBACK_BASE = hasEnvOverride || !isLocalOrLan
   ? null
-  : (isLocalOrLan ? directBackendBase : null);
+  : directBackendBase;

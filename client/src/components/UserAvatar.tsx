@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { getCloudinaryDeliveryUrl } from '../utils/cloudinary';
 
 type AvatarUser = {
   id?: string;
@@ -46,13 +47,14 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
       ? (authUser?.profilePicture || targetUser?.profilePicture)
       : targetUser?.profilePicture) ??
     '';
+  const deliverySrc = resolvedSrc ? getCloudinaryDeliveryUrl(resolvedSrc, 'image') : '';
 
-  if (resolvedSrc) {
+  if (deliverySrc) {
     return (
       <img
-        src={resolvedSrc}
+        src={deliverySrc}
         alt={alt || displayName}
-        key={resolvedSrc}
+        key={deliverySrc}
         style={{
           width: `${size}px`,
           height: `${size}px`,
