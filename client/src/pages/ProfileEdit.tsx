@@ -73,12 +73,12 @@ const ProfileEdit: React.FC = () => {
 
   return (
     <SettingsLayout>
-      <div>
-        <h1 style={{ marginBottom: '30px', fontSize: '28px', fontWeight: 'bold' }}>Edit Profile</h1>
+      <div className="settings-page settings-page--profile-edit">
+        <h1 className="settings-page-title" style={{ marginBottom: '30px', fontSize: '28px', fontWeight: 'bold' }}>Edit Profile</h1>
         
         <form onSubmit={handleSubmit}>
           {/* Profile Picture Section */}
-          <div style={{ 
+          <div className="settings-page-card profile-card-header" style={{ 
             display: 'flex', 
             alignItems: 'center', 
             gap: '30px', 
@@ -87,7 +87,7 @@ const ProfileEdit: React.FC = () => {
             backgroundColor: 'white',
             borderRadius: '8px',
             border: '1px solid #dbdbdb'
-          }} className="profile-card-header">
+          }}>
             <div style={{ position: 'relative' }}>
               <UserAvatar
                 user={user as any}
@@ -123,7 +123,7 @@ const ProfileEdit: React.FC = () => {
           </div>
 
           {/* Form Fields */}
-          <div style={{ 
+          <div className="settings-page-card" style={{ 
             backgroundColor: 'white',
             borderRadius: '8px',
             border: '1px solid #dbdbdb',
@@ -295,7 +295,7 @@ const ProfileEdit: React.FC = () => {
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '30px' }}>
+            <div className="profile-edit-actions" style={{ display: 'flex', gap: '10px', marginTop: '30px' }}>
               <button 
                 type="submit" 
                 className="btn-primary"

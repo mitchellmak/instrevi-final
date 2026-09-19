@@ -86,7 +86,7 @@ const Login: React.FC = () => {
   }; 
 
   return (
-    <div style={{ 
+    <div className="auth-page auth-page--login" style={{ 
       display: 'flex', 
       minHeight: 'calc(100vh - 58px)',
       backgroundColor: 'var(--brand-bg)',
@@ -119,7 +119,7 @@ const Login: React.FC = () => {
         }
       `}</style>
       {/* Centered Box */}
-      <div className="login-container" style={{
+      <div className="login-container auth-shell auth-shell--login" style={{
         backgroundColor: '#ffffff',
         borderRadius: '16px',
         boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
@@ -128,16 +128,16 @@ const Login: React.FC = () => {
         overflow: 'hidden',
         border: '1px solid #e0e0e0'
       }}>
-        <div style={{ display: 'flex', flexDirection: 'row-reverse', flexWrap: 'wrap' }}>
+        <div className="auth-card-layout" style={{ display: 'flex', flexDirection: 'row-reverse', flexWrap: 'wrap' }}>
           {/* Login Form - Shows first on mobile due to flex-direction: row-reverse */}
-          <div className="login-form-panel" style={{
+          <div className="login-form-panel auth-form-panel" style={{
             flex: '1 1 400px',
             minWidth: '280px',
             padding: '50px 45px',
             order: 1
           }}>
-            <div className="welcome-header" style={{ marginBottom: '30px' }}>
-              <h2 className="welcome-title" style={{ 
+            <div className="welcome-header auth-welcome-header" style={{ marginBottom: '30px' }}>
+              <h2 className="welcome-title auth-welcome-title" style={{ 
                 fontSize: '26px', 
                 fontWeight: '700', 
                 color: 'var(--brand-accent)',
@@ -146,7 +146,7 @@ const Login: React.FC = () => {
               }}>
                 Welcome Back
               </h2>
-              <p style={{ 
+              <p className="auth-welcome-subtitle" style={{ 
                 fontSize: '14px', 
                 color: 'var(--brand-primary)',
                 lineHeight: '1.5'
@@ -157,7 +157,7 @@ const Login: React.FC = () => {
             
             <form onSubmit={handleSubmit}>
               {error && (
-                <div style={{ 
+                <div className="auth-error-banner" style={{ 
                   color: '#d32f2f', 
                   backgroundColor: '#ffebee',
                   padding: '10px 14px',
@@ -170,8 +170,8 @@ const Login: React.FC = () => {
                 </div>
               )}
               
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ 
+              <div className="auth-field" style={{ marginBottom: '16px' }}>
+                <label className="auth-label" style={{ 
                   display: 'block', 
                   fontSize: '13px', 
                   fontWeight: '600', 
@@ -201,8 +201,8 @@ const Login: React.FC = () => {
                 />
               </div>
               
-              <div style={{ marginBottom: '18px' }}>
-                <label style={{ 
+              <div className="auth-field" style={{ marginBottom: '18px' }}>
+                <label className="auth-label" style={{ 
                   display: 'block', 
                   fontSize: '13px', 
                   fontWeight: '600', 
@@ -233,7 +233,7 @@ const Login: React.FC = () => {
               </div>
 
               {!RECAPTCHA_SITE_KEY && (
-                <div style={{ 
+                <div className="auth-captcha-box" style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
                   gap: '8px', 
@@ -258,7 +258,7 @@ const Login: React.FC = () => {
               
               <button 
                 type="submit" 
-                className="btn-dark btn-large"
+                className="btn-dark btn-large auth-submit-btn"
                 style={{ 
                   marginBottom: '16px',
                   fontSize: '15px',
@@ -271,7 +271,7 @@ const Login: React.FC = () => {
               </button>
 
               {/* Remember me and Forgot password row */}
-              <div style={{ 
+              <div className="auth-inline-row" style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'space-between',
@@ -280,6 +280,7 @@ const Login: React.FC = () => {
               }}>
                 <Link 
                   to="/forgot-password" 
+                  className="auth-muted-link"
                   style={{ 
                     color: 'var(--brand-primary)', 
                     textDecoration: 'none',
@@ -292,7 +293,7 @@ const Login: React.FC = () => {
                 >
                   Forgot password?
                 </Link>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="auth-remember-wrap" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input 
                     id="rememberMe" 
                     type="checkbox" 
@@ -305,7 +306,7 @@ const Login: React.FC = () => {
                       accentColor: 'var(--brand-pop)'
                     }}
                   />
-                  <label htmlFor="rememberMe" style={{ 
+                  <label htmlFor="rememberMe" className="auth-muted-label" style={{ 
                     margin: 0, 
                     fontSize: '13px', 
                     color: '#737373', 
@@ -317,16 +318,17 @@ const Login: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ 
+              <div className="auth-switch-row" style={{ 
                 display: 'flex', 
                 justifyContent: 'center',
                 alignItems: 'center',
                 paddingTop: '16px',
                 borderTop: '1px solid var(--brand-border)'
               }}>
-                <span style={{ color: '#737373', fontSize: '14px', marginRight: '6px' }}>Don't have an account?</span>
+                <span className="auth-muted-copy" style={{ color: '#737373', fontSize: '14px', marginRight: '6px' }}>Don't have an account?</span>
                 <Link 
                   to="/register" 
+                  className="auth-accent-link"
                   style={{ 
                     color: 'var(--brand-pop)', 
                     textDecoration: 'none',
@@ -341,7 +343,7 @@ const Login: React.FC = () => {
                 </Link>
               </div>
 
-              <p style={{
+              <p className="auth-terms-copy" style={{
                 marginTop: '12px',
                 textAlign: 'center',
                 fontSize: '12px',
@@ -350,6 +352,7 @@ const Login: React.FC = () => {
                 By signing in, you agree to our{' '}
                 <Link
                   to="/terms"
+                  className="auth-accent-link"
                   style={{
                     color: 'var(--brand-pop)',
                     textDecoration: 'none',
@@ -363,14 +366,14 @@ const Login: React.FC = () => {
             </form>
 
             {/* Mobile About Us Toggle */}
-            <div style={{ marginTop: '24px' }}>
+            <div className="auth-mobile-about-wrap" style={{ marginTop: '24px' }}>
               <style>{`
                 @media (min-width: 769px) {
                   .mobile-about-toggle { display: none !important; }
                 }
               `}</style>
               <button
-                className="mobile-about-toggle"
+                className="mobile-about-toggle auth-mobile-about-toggle"
                 onClick={() => setShowAboutUs(!showAboutUs)}
                 style={{
                   width: '100%',
@@ -392,14 +395,14 @@ const Login: React.FC = () => {
               </button>
               
               {showAboutUs && (
-                <div style={{
+                <div className="auth-mobile-about-panel" style={{
                   marginTop: '16px',
                   padding: '20px',
                   backgroundColor: 'var(--brand-bg)',
                   borderRadius: '8px',
                   border: '1px solid var(--brand-border)'
                 }}>
-                  <h2 style={{ 
+                  <h2 className="auth-mobile-about-heading" style={{ 
                     fontSize: '14px', 
                     fontWeight: '600', 
                     marginBottom: '12px',
@@ -410,7 +413,7 @@ const Login: React.FC = () => {
                     About Us
                   </h2>
                   
-                  <p style={{ 
+                  <p className="auth-mobile-about-copy" style={{ 
                     fontSize: '13px', 
                     lineHeight: '1.6', 
                     marginBottom: '12px',
@@ -422,7 +425,7 @@ const Login: React.FC = () => {
                     We’re built on transparency, not theatrics. Our community highlights what works, exposes what doesn’t, and brings clarity to a world crowded with marketing noise.
                   </p>
                   
-                  <p style={{ 
+                  <p className="auth-mobile-about-copy" style={{ 
                     fontSize: '13px', 
                     lineHeight: '1.6',
                     color: '#4a4a4a'
@@ -435,7 +438,7 @@ const Login: React.FC = () => {
           </div>
 
           {/* Desktop About Us Panel - Hidden on mobile */}
-          <div className="desktop-about-panel" style={{
+          <div className="desktop-about-panel auth-desktop-about" style={{
             flex: '0 0 380px',
             minWidth: '280px',
             background: 'linear-gradient(160deg, var(--brand-accent) 0%, var(--brand-primary) 100%)',
@@ -446,7 +449,7 @@ const Login: React.FC = () => {
             color: '#f5f5f5',
             order: 2
           }}>
-            <h1 style={{ 
+            <h1 className="auth-desktop-brand" style={{ 
               fontSize: '32px', 
               fontWeight: '700', 
               marginBottom: '20px',
@@ -456,7 +459,7 @@ const Login: React.FC = () => {
               Instrevi
             </h1>
               
-              <h2 style={{ 
+              <h2 className="auth-desktop-about-heading" style={{ 
                 fontSize: '14px', 
                 fontWeight: '600', 
                 marginBottom: '16px',
@@ -467,7 +470,7 @@ const Login: React.FC = () => {
                 About Us
               </h2>
               
-              <p style={{ 
+              <p className="auth-desktop-about-copy" style={{ 
                 fontSize: '13px', 
                 lineHeight: '1.6', 
                 marginBottom: '14px',
@@ -479,7 +482,7 @@ const Login: React.FC = () => {
                 We’re built on transparency, not theatrics. Our community highlights what works, exposes what doesn’t, and brings clarity to a world crowded with marketing noise.
               </p>
               
-              <p style={{ 
+              <p className="auth-desktop-about-copy" style={{ 
                 fontSize: '13px', 
                 lineHeight: '1.6',
                 color: '#d4d4d4'

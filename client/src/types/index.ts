@@ -69,6 +69,8 @@ export interface Post {
   soundtrack?: PostSoundtrack;
   user: User;
   likes: User[];
+  helpfulUpvotes?: string[];
+  helpfulDownvotes?: string[];
   comments: Comment[];
   rating?: number;
   customRating?: number;
@@ -101,6 +103,7 @@ export type NotificationType =
   | 'comment'
   | 'mention'
   | 'tag'
+  | 'subject_review'
   | 'notification'
   | 'general';
 

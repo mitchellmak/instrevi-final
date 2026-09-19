@@ -21,6 +21,7 @@ const notificationSchema = new mongoose.Schema({
       'comment',
       'mention',
       'tag',
+      'subject_review',
       'notification',
       'general'
     ],

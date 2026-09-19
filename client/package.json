@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "@testing-library/jest-dom": "^5.16.4",
     "@testing-library/react": "^13.3.0",
     "@testing-library/user-event": "^13.5.0",
@@ -22,7 +25,10 @@
     "build": "node scripts/fix-fork-ts-checker-path.js && react-scripts build",
     "postinstall": "node scripts/fix-fork-ts-checker-path.js",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "android:sync": "npm run build && npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:run": "npm run build && npx cap sync android && npx cap run android"
   },
   "proxy": "http://localhost:5000",
   "eslintConfig": {

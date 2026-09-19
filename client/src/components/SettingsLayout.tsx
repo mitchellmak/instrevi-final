@@ -184,6 +184,14 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
     { path: '/settings/help', label: 'Help & Support', icon: 'help' },
   ];
 
+  const isMenuItemActive = (path: string) => {
+    if (path === '/friends') {
+      return location.pathname === '/friends' || location.pathname === '/settings/friends';
+    }
+
+    return location.pathname === path;
+  };
+
   return (
     <div
       className="settings-shell"
@@ -193,22 +201,8 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
       <button
         onClick={() => setMobileMenuOpen(true)}
         className="settings-mobile-trigger"
-        style={{
-          display: 'none',
-          alignItems: 'center',
-          gap: '8px',
-          background: 'white',
-          border: '1px solid var(--brand-border)',
-          borderRadius: '8px',
-          padding: '8px 12px',
-          fontSize: '13px',
-          fontWeight: 600,
-          color: 'var(--brand-accent)',
-          cursor: 'pointer',
-          margin: '12px 12px 0'
-        }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className="settings-mobile-trigger-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <line x1="3" y1="12" x2="21" y2="12" />
           <line x1="3" y1="6" x2="21" y2="6" />
           <line x1="3" y1="18" x2="21" y2="18" />
@@ -227,66 +221,35 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children }) => {
         onTouchStart={handleDrawerTouchStart}
         onTouchEnd={handleDrawerTouchEnd}
       >
-        <h2 style={{ 
-          padding: '0 20px', 
-          marginBottom: '20px', 
-          fontSize: '24px',
-          fontWeight: 'bold'
-        }}>
+        <h2 className="settings-sidebar-title">
           Settings
         </h2>
         
-        <nav style={{ flex: 1 }}>
+        <nav className="settings-nav">
           {menuItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
-              className="settings-nav-link"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '15px',
-                padding: '12px 20px',
-                textDecoration: 'none',
-                color: location.pathname === item.path ? 'var(--brand-accent)' : 'var(--brand-primary)',
-                backgroundColor: location.pathname === item.path ? '#ecf2f8' : 'transparent',
-                borderLeft: location.pathname === item.path ? '3px solid var(--brand-pop)' : '3px solid transparent',
-                fontWeight: location.pathname === item.path ? 'bold' : 'normal',
-                transition: 'all 0.2s'
-              }}
+              className={`settings-nav-link ${isMenuItemActive(item.path) ? 'active' : ''}`}
             >
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span className="settings-nav-link-icon">
                 {renderIcon(item.icon)}
               </span>
-              <span>{item.label}</span>
+              <span className="settings-nav-link-label">{item.label}</span>
             </Link>
           ))}
         </nav>
 
         {/* Logout button at bottom */}
-        <div style={{ borderTop: '1px solid var(--brand-border)', padding: '10px 0' }}>
+        <div className="settings-sidebar-footer">
           <button
             onClick={handleLogout}
-            className="settings-nav-link"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '15px',
-              padding: '12px 20px',
-              width: '100%',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: '#ed4956',
-              fontWeight: 'bold',
-              fontSize: '14px',
-              textAlign: 'left'
-            }}
+            className="settings-nav-link settings-nav-link--logout"
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span className="settings-nav-link-icon">
               {renderIcon('logout')}
             </span>
-            <span>Logout</span>
+            <span className="settings-nav-link-label">Logout</span>
           </button>
         </div>
       </div>

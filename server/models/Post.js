@@ -170,6 +170,14 @@ const postSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  helpfulUpvotes: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  helpfulDownvotes: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   comments: [{
     user: {
       type: mongoose.Schema.Types.ObjectId,

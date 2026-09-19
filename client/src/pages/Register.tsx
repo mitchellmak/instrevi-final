@@ -62,7 +62,7 @@ const Register: React.FC = () => {
   };
 
   return (
-    <div style={{
+    <div className="auth-page auth-page--register" style={{
       display: 'flex',
       minHeight: 'calc(100vh - 58px)',
       backgroundColor: 'var(--brand-bg)',
@@ -101,14 +101,14 @@ const Register: React.FC = () => {
           }
         }
       `}</style>
-      <div className="register-container" style={{ 
+      <div className="register-container auth-shell auth-shell--register" style={{ 
         display: 'flex', 
         justifyContent: 'center', 
         alignItems: 'center', 
         minHeight: 'calc(100vh - 58px)',
         padding: '20px'
       }}>
-        <div style={{ 
+        <div className="register-card auth-card" style={{ 
           display: 'flex',
           flexWrap: 'wrap',
           flexDirection: 'row-reverse',
@@ -121,7 +121,7 @@ const Register: React.FC = () => {
         }}>
           
           {/* About Sign Up Panel - Desktop Only */}
-          <div className="desktop-about-panel" style={{ 
+          <div className="desktop-about-panel auth-desktop-about" style={{ 
             flex: '0 0 380px',
             background: 'linear-gradient(160deg, var(--brand-accent) 0%, var(--brand-primary) 100%)',
             color: '#fff',
@@ -130,13 +130,13 @@ const Register: React.FC = () => {
             flexDirection: 'column',
             justifyContent: 'center'
           }}>
-            <h2 style={{ 
+            <h2 className="auth-desktop-brand" style={{ 
               fontSize: '26px',
               marginBottom: '20px',
               fontWeight: '700',
               letterSpacing: '-0.5px'
             }}>Join Instrevi</h2>
-            <p style={{ 
+            <p className="auth-desktop-about-copy" style={{ 
               fontSize: '13px',
               lineHeight: '1.6',
               marginBottom: '16px',
@@ -144,7 +144,7 @@ const Register: React.FC = () => {
             }}>
               Create an account to share your product reviews and unboxing experiences with the community.
             </p>
-            <p style={{ 
+            <p className="auth-desktop-about-copy" style={{ 
               fontSize: '13px',
               lineHeight: '1.6',
               marginBottom: '16px',
@@ -152,7 +152,7 @@ const Register: React.FC = () => {
             }}>
               Connect with fellow enthusiasts, discover new products, and help others make informed purchase decisions.
             </p>
-            <p style={{ 
+            <p className="auth-desktop-about-copy" style={{ 
               fontSize: '13px',
               lineHeight: '1.6',
               color: '#e0e0e0'
@@ -162,7 +162,7 @@ const Register: React.FC = () => {
           </div>
 
           {/* Registration Form Panel */}
-          <div className="login-form-panel" style={{ 
+          <div className="login-form-panel auth-form-panel" style={{ 
             flex: '1',
             padding: '50px 40px',
             display: 'flex',
@@ -170,18 +170,18 @@ const Register: React.FC = () => {
             justifyContent: 'center',
             minWidth: '320px'
           }}>
-            <div className="welcome-header" style={{ 
+            <div className="welcome-header auth-welcome-header" style={{ 
               marginBottom: '30px',
               textAlign: 'center'
             }}>
-              <h1 className="welcome-title" style={{ 
+              <h1 className="welcome-title auth-welcome-title" style={{ 
                 fontSize: '26px',
                 fontWeight: '700',
                 marginBottom: '8px',
                 color: 'var(--brand-accent)',
                 letterSpacing: '-0.5px'
               }}>Create Account</h1>
-              <p style={{ 
+              <p className="auth-welcome-subtitle" style={{ 
                 fontSize: '14px',
                 color: 'var(--brand-primary)',
                 lineHeight: '1.5'
@@ -247,7 +247,7 @@ const Register: React.FC = () => {
             </div>
             
             <form onSubmit={handleSubmit}>
-              {error && <div style={{ 
+              {error && <div className="auth-error-banner" style={{ 
                 color: '#ed4956',
                 marginBottom: '12px',
                 fontSize: '14px',
@@ -311,7 +311,7 @@ const Register: React.FC = () => {
                 required
               />
 
-              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <div className="auth-captcha-box" style={{ marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                 <input
                   id="registerTermsAccepted"
                   type="checkbox"
@@ -322,10 +322,11 @@ const Register: React.FC = () => {
                 />
                 <label
                   htmlFor="registerTermsAccepted"
+                  className="auth-muted-label"
                   style={{ margin: 0, fontSize: '13px', color: '#4a4a4a', lineHeight: 1.5, cursor: 'pointer' }}
                 >
                   I have read and agree to the{' '}
-                  <Link to="/terms" style={{ color: 'var(--brand-pop)', textDecoration: 'none', fontWeight: 600 }}>
+                  <Link to="/terms" className="auth-accent-link" style={{ color: 'var(--brand-pop)', textDecoration: 'none', fontWeight: 600 }}>
                     Terms & Conditions
                   </Link>
                   .
@@ -334,7 +335,7 @@ const Register: React.FC = () => {
               
               <button 
                 type="submit" 
-                className="btn-dark btn-large"
+                className="btn-dark btn-large auth-submit-btn"
                 style={{ 
                   marginBottom: '16px',
                   fontSize: '15px',
@@ -346,10 +347,11 @@ const Register: React.FC = () => {
               </button>
             </form>
             
-            <div style={{ textAlign: 'center' }}>
-              <span style={{ color: '#737373', fontSize: '14px' }}>Have an account? </span>
+            <div className="auth-switch-row" style={{ textAlign: 'center' }}>
+              <span className="auth-muted-copy" style={{ color: '#737373', fontSize: '14px' }}>Have an account? </span>
               <Link 
                 to="/login" 
+                className="auth-accent-link"
                 style={{ 
                   color: 'var(--brand-pop)', 
                   textDecoration: 'none', 
@@ -364,7 +366,7 @@ const Register: React.FC = () => {
               </Link>
             </div>
 
-            <p style={{
+            <p className="auth-terms-copy" style={{
               marginTop: '12px',
               textAlign: 'center',
               fontSize: '12px',
@@ -373,6 +375,7 @@ const Register: React.FC = () => {
               By signing up, you agree to our{' '}
               <Link
                 to="/terms"
+                className="auth-accent-link"
                 style={{
                   color: 'var(--brand-pop)',
                   textDecoration: 'none',

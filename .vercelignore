@@ -1,0 +1,8 @@
+# Vercel builds only the client; the backend is hosted separately.
+/*
+!/client
+!/client/**
+/client/node_modules/**
+/client/build/**
+/client/.vercel/**
+/client/.env*

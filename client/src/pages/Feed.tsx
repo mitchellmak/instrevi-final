@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Post } from '../types';
 import PostCard from '../components/PostCard';
 import UserAvatar from '../components/UserAvatar';
 import { useAuth } from '../hooks/useAuth';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../utils/apiFetch';
 import { getCloudinaryDeliveryUrl } from '../utils/cloudinary';
 
@@ -80,48 +80,62 @@ const getTopRailPostTitle = (post: Post): string => {
   return post.postType === 'unboxing' ? 'Unboxing post' : 'Review post';
 };
 
+const RecentPostPreview: React.FC<{ entry: PosterAggregate; onOpen: (id: string) => void }> = ({ entry, onOpen }) => {
+  const [failedImage, setFailedImage] = useState('');
+  const post = entry.latestPost;
+  const username = entry.user.username || 'User';
+  const title = getTopRailPostTitle(post);
+  const source = post.image || (Array.isArray(post.images) ? post.images[0] : '') || '';
+  const image = source ? getCloudinaryDeliveryUrl(source, 'image') : '';
+  const isUnboxing = post.postType === 'unboxing';
+
+  return (
+    <button type="button" className="feed-top-post-card" onClick={() => onOpen(post._id)} aria-label={`Open ${title} by ${username}`}>
+      <div className="feed-top-post-media-wrap">
+        {image && image !== failedImage ? (
+          <img src={image} alt="" className="feed-top-post-media" loading="lazy" onError={() => setFailedImage(image)} />
+        ) : (
+          <div className="feed-top-post-media feed-top-post-media--fallback">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8" cy="8" r="1.5" /><path d="m3 17 6-6 4 4 3-3 5 5" />
+            </svg>
+            <span>Preview unavailable</span>
+          </div>
+        )}
+        <span className={`feed-top-post-pill feed-top-post-pill--${isUnboxing ? 'unboxing' : 'review'}`}>
+          {isUnboxing ? 'Unboxing' : 'Review'}
+        </span>
+      </div>
+      <span className="feed-top-post-title" title={title}>{title}</span>
+      <div className="feed-top-post-meta">
+        <UserAvatar user={entry.user as unknown as UserRef} size={22} alt="" />
+        <span className="feed-top-post-name">{username}</span>
+      </div>
+    </button>
+  );
+};
+
 const Feed: React.FC = () => {
+  useEffect(() => {
+    document.body.classList.add('feed-surface');
+    return () => document.body.classList.remove('feed-surface');
+  }, []);
+
   const { token, user } = useAuth();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [feedError, setFeedError] = useState('');
-  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [viewedStripPostIds, setViewedStripPostIds] = useState<string[]>([]);
   const [relationshipIds, setRelationshipIds] = useState<{ friendIds: string[]; followingIds: string[] }>({
     friendIds: [],
     followingIds: [],
   });
   const [publicFollowerCounts, setPublicFollowerCounts] = useState<Record<string, number>>({});
-  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const authUserId = getEntityId(user);
-  const isBanned = Boolean(user?.isBanned);
   const openPostId = searchParams.get('post') || '';
   const searchQuery = searchParams.get('q') || '';
   const showFavsOnly = searchParams.get('favs') === '1';
-
-  const updateFeedFilters = (next: { query?: string; favs?: boolean }) => {
-    const params = new URLSearchParams(searchParams);
-
-    if (typeof next.query === 'string') {
-      if (next.query) {
-        params.set('q', next.query);
-      } else {
-        params.delete('q');
-      }
-    }
-
-    if (typeof next.favs === 'boolean') {
-      if (next.favs) {
-        params.set('favs', '1');
-      } else {
-        params.delete('favs');
-      }
-    }
-
-    setSearchParams(params, { replace: true });
-  };
 
   const openRecentPosterPost = (postId: string) => {
     if (!postId) return;
@@ -163,11 +177,6 @@ const Feed: React.FC = () => {
 
     return () => window.cancelAnimationFrame(frameId);
   }, [openPostId, loading, posts, searchParams, setSearchParams]);
-
-  useEffect(() => {
-    if (!showMobileSearch) return;
-    mobileSearchInputRef.current?.focus();
-  }, [showMobileSearch]);
 
   useEffect(() => {
     if (!authUserId) {
@@ -473,144 +482,24 @@ const Feed: React.FC = () => {
         </div>
       )}
 
-      {showMobileSearch && (
-        <div className="feed-mobile-search">
-          <input
-            ref={mobileSearchInputRef}
-            type="text"
-            placeholder="Search posts..."
-            value={searchQuery}
-            onChange={(e) => updateFeedFilters({ query: e.target.value })}
-            className="feed-mobile-search-input"
-          />
-          <button
-            type="button"
-            className="feed-mobile-search-close"
-            onClick={() => setShowMobileSearch(false)}
-            aria-label="Close search"
-          >
-            Done
-          </button>
-        </div>
-      )}
-
       {(friendRecentPosters.length > 0 || latestOtherRecentPosters.length > 0) && (
-        <section className="feed-top-rail-combined" aria-label="Recent posts by friends and other users">
-          <div className="feed-top-pane" aria-label="Friends latest posts">
-            <div className="feed-top-rail-header">
-              <h3>Friends</h3>
+        <section className={`feed-top-rail-combined ${friendRecentPosters.length === 0 ? 'feed-top-rail--discover' : ''}`} aria-label="Recent posts">
+          {friendRecentPosters.length > 0 && (
+            <div className="feed-top-pane" aria-label="Friends latest posts">
+              <div className="feed-top-rail-header"><h3>From friends</h3><Link to="/friends">View friends</Link></div>
+              <div className="feed-top-rail-track">
+                {friendRecentPosters.map(entry => <RecentPostPreview key={entry.userId} entry={entry} onOpen={openRecentPosterPost} />)}
+              </div>
             </div>
-            <div className="feed-top-rail-track">
-              {friendRecentPosters.length === 0 ? (
-                <div className="feed-top-rail-empty">No friend posts yet</div>
-              ) : (
-                friendRecentPosters.map((entry) => {
-                  const isUnboxing = entry.latestPost.postType === 'unboxing';
-                  const username = entry.user.username || 'User';
-                  const postTitle = getTopRailPostTitle(entry.latestPost);
-                  const previewSource = entry.latestPost.image || (Array.isArray(entry.latestPost.images) ? entry.latestPost.images[0] : '') || '';
-                  const previewImage = previewSource ? getCloudinaryDeliveryUrl(previewSource, 'image') : '';
-
-                  return (
-                    <button
-                      type="button"
-                      key={`friend-${entry.userId}`}
-                      className="feed-top-post-card"
-                      aria-label={`Open ${username} recent post`}
-                      onClick={() => openRecentPosterPost(entry.latestPost._id)}
-                    >
-                      <div className="feed-top-post-media-wrap">
-                        {previewImage ? (
-                          <img
-                            src={previewImage}
-                            alt={`${username} recent post`}
-                            className="feed-top-post-media"
-                          />
-                        ) : (
-                          <div className="feed-top-post-media feed-top-post-media--fallback">No Image</div>
-                        )}
-
-                        <span className={`feed-top-post-pill ${isUnboxing ? 'feed-top-post-pill--unboxing' : 'feed-top-post-pill--review'}`}>
-                          {isUnboxing ? 'Unboxing' : 'Review'}
-                        </span>
-
-                        <div className="feed-top-post-meta">
-                          <UserAvatar
-                            user={entry.user as unknown as UserRef}
-                            size={20}
-                            alt={username}
-                          />
-                          <div className="feed-top-post-meta-text">
-                            <span className="feed-top-post-name" title={username}>{username}</span>
-                            <span className="feed-top-post-title" title={postTitle}>{postTitle}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
+          )}
+          {latestOtherRecentPosters.length > 0 && (
+            <div className="feed-top-pane" aria-label="Latest posts by other users">
+              <div className="feed-top-rail-header"><h3>Latest discoveries</h3><span>Fresh from the community</span></div>
+              <div className="feed-top-rail-track">
+                {latestOtherRecentPosters.map(entry => <RecentPostPreview key={entry.userId} entry={entry} onOpen={openRecentPosterPost} />)}
+              </div>
             </div>
-          </div>
-
-          <div className="feed-top-pane-separator" aria-hidden="true" />
-
-          <div className="feed-top-pane" aria-label="Latest posts by other users">
-            <div className="feed-top-rail-header">
-              <h3>Latest</h3>
-            </div>
-            <div className="feed-top-rail-track">
-              {latestOtherRecentPosters.length === 0 ? (
-                <div className="feed-top-rail-empty">No latest posts yet</div>
-              ) : (
-                latestOtherRecentPosters.map((entry) => {
-                  const isUnboxing = entry.latestPost.postType === 'unboxing';
-                  const username = entry.user.username || 'User';
-                  const postTitle = getTopRailPostTitle(entry.latestPost);
-                  const previewSource = entry.latestPost.image || (Array.isArray(entry.latestPost.images) ? entry.latestPost.images[0] : '') || '';
-                  const previewImage = previewSource ? getCloudinaryDeliveryUrl(previewSource, 'image') : '';
-
-                  return (
-                    <button
-                      type="button"
-                      key={`latest-${entry.userId}`}
-                      className="feed-top-post-card"
-                      aria-label={`Open ${username} recent post`}
-                      onClick={() => openRecentPosterPost(entry.latestPost._id)}
-                    >
-                      <div className="feed-top-post-media-wrap">
-                        {previewImage ? (
-                          <img
-                            src={previewImage}
-                            alt={`${username} recent post`}
-                            className="feed-top-post-media"
-                          />
-                        ) : (
-                          <div className="feed-top-post-media feed-top-post-media--fallback">No Image</div>
-                        )}
-
-                        <span className={`feed-top-post-pill ${isUnboxing ? 'feed-top-post-pill--unboxing' : 'feed-top-post-pill--review'}`}>
-                          {isUnboxing ? 'Unboxing' : 'Review'}
-                        </span>
-
-                        <div className="feed-top-post-meta">
-                          <UserAvatar
-                            user={entry.user as unknown as UserRef}
-                            size={20}
-                            alt={username}
-                          />
-                          <div className="feed-top-post-meta-text">
-                            <span className="feed-top-post-name" title={username}>{username}</span>
-                            <span className="feed-top-post-title" title={postTitle}>{postTitle}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
+          )}
         </section>
       )}
 
@@ -635,83 +524,7 @@ const Feed: React.FC = () => {
         </div>
       )}
 
-      <div className="feed-mobile-bar" aria-label="Mobile feed actions">
-        <button
-          type="button"
-          className="feed-mobile-action feed-mobile-action--review"
-          onClick={() => navigate('/create/review')}
-          aria-label="Create review"
-          disabled={isBanned}
-          title={isBanned ? 'Banned users cannot create posts' : undefined}
-        >
-          <svg className="feed-mobile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M6 2.5h9l3 3v16H6z" />
-            <polyline points="15 2.5 15 5.5 18 5.5" />
-            <circle cx="11.4" cy="13.2" r="4.4" />
-            <line x1="14.8" y1="16.6" x2="19.1" y2="21" />
-          </svg>
-          <span className="feed-mobile-label">Review</span>
-        </button>
 
-        <button
-          type="button"
-          className="feed-mobile-action feed-mobile-action--unbox"
-          onClick={() => navigate('/create/unboxing')}
-          aria-label="Create unboxing"
-          disabled={isBanned}
-          title={isBanned ? 'Banned users cannot create posts' : undefined}
-        >
-          <svg className="feed-mobile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-            <line x1="12" y1="22.08" x2="12" y2="12" />
-          </svg>
-          <span className="feed-mobile-label">Unbox</span>
-        </button>
-
-        <button
-          type="button"
-          className="feed-mobile-action"
-          onClick={() => navigate('/list')}
-          aria-label="Open list page"
-        >
-          <svg className="feed-mobile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="8" y1="6" x2="21" y2="6" />
-            <line x1="8" y1="12" x2="21" y2="12" />
-            <line x1="8" y1="18" x2="21" y2="18" />
-            <circle cx="4" cy="6" r="1" />
-            <circle cx="4" cy="12" r="1" />
-            <circle cx="4" cy="18" r="1" />
-          </svg>
-          <span className="feed-mobile-label">List</span>
-        </button>
-
-        <button
-          type="button"
-          className={`feed-mobile-action ${showMobileSearch ? 'active' : ''}`}
-          onClick={() => setShowMobileSearch((prev) => !prev)}
-          aria-label="Search posts"
-        >
-          <svg className="feed-mobile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <span className="feed-mobile-label">Search</span>
-        </button>
-
-        <button
-          type="button"
-          className={`feed-mobile-action ${showFavsOnly ? 'active' : ''}`}
-          onClick={() => updateFeedFilters({ favs: !showFavsOnly })}
-          aria-label="Favorites"
-        >
-          <svg className="feed-mobile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 1.97-1.63l1.38-7A2 2 0 0 0 19.67 11H14z" />
-            <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
-          </svg>
-          <span className="feed-mobile-label">Favs</span>
-        </button>
-      </div>
     </div>
   );
 };

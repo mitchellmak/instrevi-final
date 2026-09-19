@@ -7,6 +7,7 @@ import EditedVideo from './EditedVideo';
 import SoundtrackPlayer from './SoundtrackPlayer';
 import { formatRichTextToHtml } from '../utils/richText';
 import { useAuth } from '../hooks/useAuth';
+import { apiFetch } from '../utils/apiFetch';
 import { API_BASE } from '../utils/apiBase';
 import { getCloudinaryDeliveryUrl } from '../utils/cloudinary';
 import {
@@ -62,7 +63,7 @@ const extractCaptionTags = (caption: string) => {
 };
 
 const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
   const isBanned = Boolean(user?.isBanned);
   const [commentText, setCommentText] = React.useState('');
@@ -135,6 +136,81 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   React.useEffect(() => {
     setLiked(hasLikedFromServer);
   }, [hasLikedFromServer]);
+
+  const helpfulUpvoterIds = React.useMemo(() => (Array.isArray(post.helpfulUpvotes) ? post.helpfulUpvotes : []), [post.helpfulUpvotes]);
+  const helpfulDownvoterIds = React.useMemo(() => (Array.isArray(post.helpfulDownvotes) ? post.helpfulDownvotes : []), [post.helpfulDownvotes]);
+  const initialHelpfulVote: 'up' | 'down' | null = currentUserId && helpfulUpvoterIds.includes(currentUserId)
+    ? 'up'
+    : (currentUserId && helpfulDownvoterIds.includes(currentUserId) ? 'down' : null);
+  const [helpfulUpvotes, setHelpfulUpvotes] = React.useState(helpfulUpvoterIds.length);
+  const [helpfulDownvotes, setHelpfulDownvotes] = React.useState(helpfulDownvoterIds.length);
+  const [helpfulUserVote, setHelpfulUserVote] = React.useState<'up' | 'down' | null>(initialHelpfulVote);
+  const [helpfulVoteLoading, setHelpfulVoteLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    setHelpfulUpvotes(helpfulUpvoterIds.length);
+    setHelpfulDownvotes(helpfulDownvoterIds.length);
+    setHelpfulUserVote(
+      currentUserId && helpfulUpvoterIds.includes(currentUserId)
+        ? 'up'
+        : (currentUserId && helpfulDownvoterIds.includes(currentUserId) ? 'down' : null)
+    );
+  }, [post._id, helpfulUpvoterIds, helpfulDownvoterIds, currentUserId]);
+
+  const handleHelpfulVote = async (vote: 'up' | 'down') => {
+    if (isBanned || helpfulVoteLoading || !token) return;
+
+    const previousVote = helpfulUserVote;
+    const previousUp = helpfulUpvotes;
+    const previousDown = helpfulDownvotes;
+
+    let nextVote: 'up' | 'down' | null = vote;
+    let nextUp = helpfulUpvotes;
+    let nextDown = helpfulDownvotes;
+
+    if (previousVote === vote) {
+      nextVote = null;
+      if (vote === 'up') nextUp = Math.max(0, nextUp - 1);
+      else nextDown = Math.max(0, nextDown - 1);
+    } else {
+      if (previousVote === 'up') nextUp = Math.max(0, nextUp - 1);
+      if (previousVote === 'down') nextDown = Math.max(0, nextDown - 1);
+      if (vote === 'up') nextUp += 1;
+      else nextDown += 1;
+    }
+
+    setHelpfulUserVote(nextVote);
+    setHelpfulUpvotes(nextUp);
+    setHelpfulDownvotes(nextDown);
+    setHelpfulVoteLoading(true);
+
+    try {
+      const response = await apiFetch(`/api/posts/${post._id}/helpful`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ vote })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit helpful vote');
+      }
+
+      const data = await response.json();
+      setHelpfulUpvotes(typeof data.helpfulUpvotes === 'number' ? data.helpfulUpvotes : nextUp);
+      setHelpfulDownvotes(typeof data.helpfulDownvotes === 'number' ? data.helpfulDownvotes : nextDown);
+      setHelpfulUserVote(data.userVote ?? nextVote);
+    } catch (error) {
+      console.error('Helpful vote error:', error);
+      setHelpfulUserVote(previousVote);
+      setHelpfulUpvotes(previousUp);
+      setHelpfulDownvotes(previousDown);
+    } finally {
+      setHelpfulVoteLoading(false);
+    }
+  };
 
   const openPostUserProfile = () => {
     if (!postUserId) return;
@@ -1391,15 +1467,25 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     return (
       <div ref={cardRef} className="card" data-post-id={post._id} data-has-media={mediaItems.length > 0 ? 'true' : 'false'} style={{ fontFamily: "'Poppins', sans-serif" }}>
         {/* Review Header */}
-        <div style={{ padding: '10px 16px 6px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px' }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ fontSize: '12px', color: 'var(--brand-primary)', fontWeight: '500' }}>
-                REVIEW • {postCategory || 'Uncategorized'}
-              </span>
-
+        <div className="post-card-header post-card-header--review">
+          <div className="post-card-top-row">
+            <UserChip
+              user={postUser as any}
+              onClick={postUserId ? openPostUserProfile : undefined}
+              ariaLabel={`Open ${postUser.username || 'User'} profile`}
+              avatarSize={40}
+              containerStyle={{ gap: '10px' }}
+              textContainerStyle={{ alignItems: 'flex-start' }}
+              primaryStyle={{ fontSize: '13px', fontWeight: '500' }}
+            />
+            <div className="post-card-category">
+              <span className="post-card-type">Review</span>
+              <span>{postCategory || 'Uncategorized'}</span>
+            </div>
+          </div>
+          <h3 className="post-card-title" title={post.title || ''}>{post.title}</h3>
               {(userRatingValue !== null || totalRatingsCountValue > 0) && (
-                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div className="post-header-ratings">
                   {userRatingValue !== null && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '12px', color: 'var(--brand-primary)', fontWeight: 600 }}>User rating</span>
@@ -1421,38 +1507,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
                   )}
                 </div>
               )}
-            </div>
-            <UserChip
-              user={postUser as any}
-              onClick={postUserId ? openPostUserProfile : undefined}
-              ariaLabel={`Open ${postUser.username || 'User'} profile`}
-              avatarSize={40}
-              containerStyle={{ flexDirection: 'column', gap: '4px' }}
-              textContainerStyle={{ alignItems: 'center' }}
-              primaryStyle={{ fontSize: '11px', fontWeight: '500' }}
-            />
-          </div>
-
-          <h3
-            title={post.title || ''}
-            style={{
-              fontSize: '18px',
-              fontWeight: '600',
-              margin: '0 0 2px 0',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}
-          >
-            {post.title}
-          </h3>
         </div>
 
         {/* Review Media */}
         {renderPostMedia('compact')}
 
         {/* Review Content */}
-        <div style={{ padding: '16px' }}>
+        <div className="post-card-content" style={{ padding: '16px' }}>
           {/* Review Text */}
           {post.caption && (
             <div
@@ -1526,8 +1587,57 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
             </div>
           )}
 
+          {/* Helpful vote */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--brand-muted)' }}>Was this review helpful?</span>
+            <button
+              type="button"
+              onClick={() => handleHelpfulVote('up')}
+              disabled={isBanned || helpfulVoteLoading}
+              title={isBanned ? 'Banned users cannot vote' : 'Mark as helpful'}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                border: '1px solid var(--brand-border)',
+                borderRadius: '999px',
+                background: helpfulUserVote === 'up' ? 'rgba(46, 125, 50, 0.12)' : '#fff',
+                color: helpfulUserVote === 'up' ? '#2e7d32' : 'var(--brand-accent)',
+                fontSize: '12px',
+                fontWeight: 600,
+                padding: '4px 10px',
+                cursor: isBanned ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <span aria-hidden="true">👍</span>
+              <span>{helpfulUpvotes}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleHelpfulVote('down')}
+              disabled={isBanned || helpfulVoteLoading}
+              title={isBanned ? 'Banned users cannot vote' : 'Mark as not helpful'}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                border: '1px solid var(--brand-border)',
+                borderRadius: '999px',
+                background: helpfulUserVote === 'down' ? 'rgba(198, 40, 40, 0.1)' : '#fff',
+                color: helpfulUserVote === 'down' ? '#c62828' : 'var(--brand-accent)',
+                fontSize: '12px',
+                fontWeight: 600,
+                padding: '4px 10px',
+                cursor: isBanned ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <span aria-hidden="true">👎</span>
+              <span>{helpfulDownvotes}</span>
+            </button>
+          </div>
+
           {/* Actions */}
-          <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid var(--brand-border)' }}>
+          <div className="post-card-actions" style={{ display: 'flex', gap: '16px', marginBottom: '8px' }}>
             <button 
               onClick={handleLike}
               disabled={isBanned}
@@ -1564,7 +1674,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
             </button>
           </div>
 
-          <div style={{ fontWeight: '600', marginBottom: '8px', fontSize: '14px' }}>
+          <div className="post-like-count" style={{ fontWeight: '600', marginBottom: '8px', fontSize: '14px' }}>
             {displayLikesCount} {displayLikesCount === 1 ? 'like' : 'likes'}
           </div>
 
@@ -1581,33 +1691,31 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
     return (
       <div ref={cardRef} className="card" data-post-id={post._id} data-has-media={mediaItems.length > 0 ? 'true' : 'false'} style={{ fontFamily: "'Poppins', sans-serif" }}>
         {/* Unboxing Header */}
-        <div style={{ padding: '10px 16px 6px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-            <div style={{ flex: 1 }}>
-              <span style={{ fontSize: '12px', color: 'var(--brand-primary)', fontWeight: '500' }}>
-                UNBOXING • {postCategory || 'Uncategorized'}
-              </span>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', margin: '6px 0 0 0' }}>
-                {post.title}
-              </h3>
-            </div>
+        <div className="post-card-header post-card-header--unboxing">
+          <div className="post-card-top-row">
             <UserChip
               user={post.user as any}
               onClick={postUserId ? openPostUserProfile : undefined}
               ariaLabel={`Open ${postUser.username || 'User'} profile`}
               avatarSize={40}
-              containerStyle={{ flexDirection: 'column', gap: '4px' }}
-              textContainerStyle={{ alignItems: 'center' }}
-              primaryStyle={{ fontSize: '11px', fontWeight: '500' }}
+              containerStyle={{ gap: '10px' }}
+              textContainerStyle={{ alignItems: 'flex-start' }}
+              primaryStyle={{ fontSize: '13px', fontWeight: '500' }}
             />
+            <div className="post-card-category">
+              <span className="post-card-type">Unboxing</span>
+              <span>{postCategory || 'Uncategorized'}</span>
+            </div>
           </div>
+          <h3 className="post-card-title" title={post.title || ''}>{post.title}</h3>
+
         </div>
 
         {/* Unboxing Media */}
         {renderPostMedia('compact')}
 
         {/* Unboxing Content */}
-        <div style={{ padding: '16px' }}>
+        <div className="post-card-content" style={{ padding: '16px' }}>
           {/* Unboxing Text */}
           {post.caption && (
             <div
@@ -1621,7 +1729,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
           {renderListFilters()}
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid var(--brand-border)' }}>
+          <div className="post-card-actions" style={{ display: 'flex', gap: '16px', marginBottom: '8px' }}>
             <button 
               onClick={handleLike}
               disabled={isBanned}
@@ -1658,7 +1766,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
             </button>
           </div>
 
-          <div style={{ fontWeight: '600', marginBottom: '8px', fontSize: '14px' }}>
+          <div className="post-like-count" style={{ fontWeight: '600', marginBottom: '8px', fontSize: '14px' }}>
             {displayLikesCount} {displayLikesCount === 1 ? 'like' : 'likes'}
           </div>
 
@@ -1675,7 +1783,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
   return (
     <div ref={cardRef} className="card" data-post-id={post._id} data-has-media={mediaItems.length > 0 ? 'true' : 'false'} style={{ fontFamily: "'Poppins', sans-serif" }}>
       {/* Post Header */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px 8px' }}>
+      <div className="post-card-header post-card-header--general" style={{ display: 'flex', alignItems: 'center', padding: '10px 16px 8px' }}>
         <UserChip
           user={post.user as any}
           onClick={postUserId ? openPostUserProfile : undefined}
@@ -1688,8 +1796,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
       {renderPostMedia('standard')}
 
       {/* Post Actions */}
-      <div style={{ padding: '16px' }}>
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '12px' }}>
+      <div className="post-card-content" style={{ padding: '16px' }}>
+        <div className="post-card-actions" style={{ display: 'flex', gap: '16px', marginBottom: '12px' }}>
           <button
             onClick={handleLike}
             disabled={isBanned}
@@ -1726,12 +1834,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLike, onComment }) => {
           </button>
         </div>
 
-        <div style={{ fontWeight: '600', marginBottom: '8px' }}>
+        <div className="post-like-count" style={{ fontWeight: '600', marginBottom: '8px' }}>
           {displayLikesCount} {displayLikesCount === 1 ? 'like' : 'likes'}
         </div>
 
         {post.caption && (
-          <div style={{ marginBottom: '12px' }}>
+          <div className="post-caption-inline" style={{ marginBottom: '12px' }}>
             <span style={{ fontWeight: '600' }}>{postUser.username || 'Deleted user'}</span>
             {' '}
             <span dangerouslySetInnerHTML={{ __html: formattedCaptionHtml }} />

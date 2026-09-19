@@ -646,12 +646,12 @@ const Profile: React.FC = () => {
       : 'No posts yet.';
 
   return (
-    <div className="feed-page">
-      <div style={{ borderRadius: '12px', padding: '16px', marginBottom: '14px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+    <div className="feed-page profile-page">
+      <div className="profile-summary-card" style={{ borderRadius: '12px', padding: '16px', marginBottom: '14px' }}>
+        <div className="profile-summary-header" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
           <UserAvatar user={profileUser} size={56} alt={profileUser.username || 'User'} />
-          <div>
-            <h2 style={{ fontSize: '22px', color: 'var(--brand-accent)', marginBottom: '4px' }}>
+          <div className="profile-summary-text">
+            <h2 className="profile-summary-name" style={{ fontSize: '22px', color: 'var(--brand-accent)', marginBottom: '4px' }}>
               {profileUser.username || 'User'}
             </h2>
             <div className="profile-bio-inline">
@@ -704,14 +704,15 @@ const Profile: React.FC = () => {
         </div>
       </div>
 
-      <div style={{ borderRadius: '12px', padding: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
-          <h3 style={{ fontSize: '16px', color: 'var(--brand-accent)', margin: 0 }}>{postSectionTitle}</h3>
+      <div className="profile-posts-section" style={{ borderRadius: '12px', padding: '10px' }}>
+        <div className="profile-posts-toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
+          <h3 className="profile-posts-title" style={{ fontSize: '16px', color: 'var(--brand-accent)', margin: 0 }}>{postSectionTitle}</h3>
           <button
             type="button"
             onClick={cyclePostsPerRow}
             aria-label={`Change posts per row. Current: ${postsPerRow}`}
             title={`Posts per row: ${postsPerRow}`}
+            className="profile-grid-toggle"
             style={{
               border: '1px solid var(--brand-border)',
               borderRadius: '999px',
@@ -750,7 +751,7 @@ const Profile: React.FC = () => {
         </div>
 
         {visiblePosts.length === 0 ? (
-          <div style={{ fontSize: '13px', color: 'var(--brand-primary)' }}>{emptyPostMessage}</div>
+          <div className="profile-posts-empty" style={{ fontSize: '13px', color: 'var(--brand-primary)' }}>{emptyPostMessage}</div>
         ) : (
           <div className="profile-posts-grid" style={{ gridTemplateColumns: `repeat(${postsPerRow}, minmax(0, 1fr))` }}>
             {visiblePosts.map((post, index) => {

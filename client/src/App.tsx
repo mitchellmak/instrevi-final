@@ -21,6 +21,7 @@ import Friends from './pages/Friends';
 import Terms from './pages/Terms';
 import TermsSettings from './pages/TermsSettings';
 import Reviews from './pages/Reviews';
+import TopRated from './pages/TopRated';
 import Notifications from './pages/Notifications';
 import ListPage from './pages/List';
 
@@ -40,6 +41,7 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/reviews" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
+        <Route path="/top-rated" element={<ProtectedRoute><TopRated /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
         <Route path="/list" element={<ProtectedRoute><ListPage /></ProtectedRoute>} />
         <Route path="/profile/:userId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

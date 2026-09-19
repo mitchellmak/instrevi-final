@@ -164,6 +164,10 @@ const getNotificationDescription = (notification: NotificationItem): string => {
       return 'mentioned you';
     case 'tag':
       return 'tagged you in a post';
+    case 'subject_review':
+      return getMetadataValue(notification, 'subjectName')
+        ? `posted a new review for ${getMetadataValue(notification, 'subjectName')}`
+        : 'posted a new review for a subject you follow';
     case 'notification':
       return 'sent you a notification';
     default:

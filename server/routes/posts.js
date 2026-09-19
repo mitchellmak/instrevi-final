@@ -495,6 +495,8 @@ router.get('/reviews/subjects', async (req, res) => {
       subjectsMap.set(subject.subjectKey, existing);
     }
 
+    const sortParam = typeof req.query.sort === 'string' ? req.query.sort.trim().toLowerCase() : '';
+
     const subjects = Array.from(subjectsMap.values())
       .map((subject) => ({
         subjectKey: subject.subjectKey,
@@ -509,6 +511,14 @@ router.get('/reviews/subjects', async (req, res) => {
         previewImage: subject.previewImage
       }))
       .sort((a, b) => {
+        if (sortParam === 'top') {
+          return (
+            b.globalRating - a.globalRating
+            || b.ratingsCount - a.ratingsCount
+            || b.reviewCount - a.reviewCount
+          );
+        }
+
         if (q) {
           const aStartsWith = a.subjectName.toLowerCase().startsWith(q);
           const bStartsWith = b.subjectName.toLowerCase().startsWith(q);
@@ -523,9 +533,13 @@ router.get('/reviews/subjects', async (req, res) => {
         );
       });
 
+    const filteredSubjects = sortParam === 'top'
+      ? subjects.filter((subject) => subject.ratingsCount > 0)
+      : subjects;
+
     return res.json({
-      subjects: subjects.slice(0, limit),
-      total: subjects.length,
+      subjects: filteredSubjects.slice(0, limit),
+      total: filteredSubjects.length,
       query: q,
       category: categoryFilter || null
     });
@@ -610,6 +624,30 @@ router.get('/reviews/subjects/:subjectKey/reviews', async (req, res) => {
     const globalRating = totalRatingsCount > 0
       ? roundRatingValue(totalRating / totalRatingsCount)
       : 0;
+
+    const sortParam = typeof req.query.sort === 'string' ? req.query.sort.trim().toLowerCase() : 'recent';
+
+    matchedReviews.sort((a, b) => {
+      if (sortParam === 'highest') {
+        const aRating = resolveReviewRating(a);
+        const bRating = resolveReviewRating(b);
+        return (bRating === null ? -Infinity : bRating) - (aRating === null ? -Infinity : aRating);
+      }
+
+      if (sortParam === 'lowest') {
+        const aRating = resolveReviewRating(a);
+        const bRating = resolveReviewRating(b);
+        return (aRating === null ? Infinity : aRating) - (bRating === null ? Infinity : bRating);
+      }
+
+      if (sortParam === 'helpful') {
+        const aHelpful = (a.helpfulUpvotes?.length || 0) - (a.helpfulDownvotes?.length || 0);
+        const bHelpful = (b.helpfulUpvotes?.length || 0) - (b.helpfulDownvotes?.length || 0);
+        return bHelpful - aHelpful;
+      }
+
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
 
     const totalItems = matchedReviews.length;
     const totalPages = Math.max(1, Math.ceil(totalItems / limit));
@@ -846,6 +884,36 @@ router.post('/', auth, requireNotBanned, uploadPostMedia, async (req, res) => {
       console.error('Post mention/tag notification error:', notificationError);
     }
 
+    if (post.postType === 'review') {
+      try {
+        const subject = resolveReviewSubjectFromPost(post.toObject());
+
+        if (subject) {
+          const followers = await User.find({ followedSubjects: subject.subjectKey }).select('_id');
+
+          await Promise.all(
+            followers
+              .filter((follower) => String(follower._id) !== String(req.user.userId))
+              .map((follower) => createNotification({
+                recipientId: follower._id,
+                actorId: req.user.userId,
+                type: 'subject_review',
+                postId: post._id,
+                message: `New review posted for ${subject.subjectName}`,
+                metadata: {
+                  subjectName: subject.subjectName
+                },
+                dedupeQuery: {
+                  post: post._id
+                }
+              }))
+          );
+        }
+      } catch (notificationError) {
+        console.error('Subject follow notification error:', notificationError);
+      }
+    }
+
     const populatedPost = await Post.findById(post._id)
       .populate('user', 'username profilePicture firstName lastName email followers following');
 
@@ -901,6 +969,115 @@ router.post('/:postId/like', auth, requireNotBanned, async (req, res) => {
     }
     
     res.json({ liked: !isLiked, likesCount: post.likes.length });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Mark a review as helpful / not helpful
+router.post('/:postId/helpful', auth, requireNotBanned, async (req, res) => {
+  try {
+    const { vote } = req.body;
+
+    if (vote !== 'up' && vote !== 'down') {
+      return res.status(400).json({ message: 'vote must be "up" or "down"' });
+    }
+
+    const post = await Post.findOne({
+      _id: req.params.postId,
+      isDeleted: { $ne: true }
+    });
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (post.postType !== 'review') {
+      return res.status(400).json({ message: 'Helpful votes are only available on reviews' });
+    }
+
+    const userId = req.user.userId;
+    const hasUpvoted = post.helpfulUpvotes.some((id) => String(id) === String(userId));
+    const hasDownvoted = post.helpfulDownvotes.some((id) => String(id) === String(userId));
+
+    if (vote === 'up') {
+      if (hasUpvoted) {
+        post.helpfulUpvotes.pull(userId);
+      } else {
+        post.helpfulUpvotes.push(userId);
+        if (hasDownvoted) post.helpfulDownvotes.pull(userId);
+      }
+    } else {
+      if (hasDownvoted) {
+        post.helpfulDownvotes.pull(userId);
+      } else {
+        post.helpfulDownvotes.push(userId);
+        if (hasUpvoted) post.helpfulUpvotes.pull(userId);
+      }
+    }
+
+    await post.save();
+
+    const stillUpvoted = post.helpfulUpvotes.some((id) => String(id) === String(userId));
+    const stillDownvoted = post.helpfulDownvotes.some((id) => String(id) === String(userId));
+
+    res.json({
+      helpfulUpvotes: post.helpfulUpvotes.length,
+      helpfulDownvotes: post.helpfulDownvotes.length,
+      userVote: stillUpvoted ? 'up' : (stillDownvoted ? 'down' : null)
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Follow/unfollow a review subject to get notified about new reviews
+router.get('/reviews/subjects/:subjectKey/follow', auth, async (req, res) => {
+  try {
+    const subjectKey = String(req.params.subjectKey || '').trim().toLowerCase();
+    if (!subjectKey) {
+      return res.status(400).json({ message: 'Subject key is required' });
+    }
+
+    const user = await User.findById(req.user.userId).select('followedSubjects');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const following = Array.isArray(user.followedSubjects) && user.followedSubjects.includes(subjectKey);
+    res.json({ following });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/reviews/subjects/:subjectKey/follow', auth, async (req, res) => {
+  try {
+    const subjectKey = String(req.params.subjectKey || '').trim().toLowerCase();
+    if (!subjectKey) {
+      return res.status(400).json({ message: 'Subject key is required' });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (!Array.isArray(user.followedSubjects)) {
+      user.followedSubjects = [];
+    }
+
+    const isFollowing = user.followedSubjects.includes(subjectKey);
+
+    if (isFollowing) {
+      user.followedSubjects = user.followedSubjects.filter((key) => key !== subjectKey);
+    } else {
+      user.followedSubjects.push(subjectKey);
+    }
+
+    await user.save();
+
+    res.json({ following: !isFollowing });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }

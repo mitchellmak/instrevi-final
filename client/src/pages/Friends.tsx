@@ -34,17 +34,6 @@ type DiscoverResponse = {
   users: NetworkUser[];
 };
 
-const tabButtonStyle = (active: boolean): React.CSSProperties => ({
-  border: '1px solid var(--brand-border)',
-  background: active ? 'var(--brand-accent)' : '#ffffff',
-  color: active ? '#ffffff' : 'var(--brand-accent)',
-  borderRadius: '999px',
-  padding: '8px 12px',
-  cursor: 'pointer',
-  fontSize: '13px',
-  fontWeight: 600
-});
-
 const userChipPrimaryStyle: React.CSSProperties = {
   fontWeight: 700,
   marginBottom: '1px',
@@ -335,7 +324,7 @@ const Friends: React.FC = () => {
           ? 'No followers yet.'
           : 'You are not following anyone yet.';
 
-      return <p style={{ textAlign: 'center', color: 'var(--brand-primary)', padding: '24px 0' }}>{emptyMessage}</p>;
+      return <p className="friends-empty-state">{emptyMessage}</p>;
     }
 
     return list.map((entry) => {
@@ -394,10 +383,10 @@ const Friends: React.FC = () => {
 
     return (
       <>
-        <div style={{ marginBottom: '14px' }}>
-          <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>Incoming Requests ({incoming.length})</h3>
+        <div className="friends-subsection">
+          <h3 className="friends-subsection-title">Incoming Requests ({incoming.length})</h3>
           {incoming.length === 0 ? (
-            <p style={{ color: 'var(--brand-primary)' }}>No incoming friend requests.</p>
+            <p className="friends-empty-inline">No incoming friend requests.</p>
           ) : (
             incoming.map((entry) => {
               const isBusy = !!busyByUserId[entry.id];
@@ -436,10 +425,10 @@ const Friends: React.FC = () => {
           )}
         </div>
 
-        <div>
-          <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>Outgoing Requests ({outgoing.length})</h3>
+        <div className="friends-subsection">
+          <h3 className="friends-subsection-title">Outgoing Requests ({outgoing.length})</h3>
           {outgoing.length === 0 ? (
-            <p style={{ color: 'var(--brand-primary)' }}>No outgoing friend requests.</p>
+            <p className="friends-empty-inline">No outgoing friend requests.</p>
           ) : (
             outgoing.map((entry) => {
               const isBusy = !!busyByUserId[entry.id];
@@ -480,73 +469,55 @@ const Friends: React.FC = () => {
 
   return (
     <SettingsLayout>
-      <div>
+      <div className="friends-page">
         <h1 className="settings-page-title">Friends</h1>
 
         <div className="card settings-page-card">
           {error && (
-            <div style={{
-              marginBottom: '14px',
-              padding: '10px 12px',
-              borderRadius: '8px',
-              border: '1px solid var(--brand-border)',
-              background: '#ffffff',
-              color: '#b42318',
-              fontSize: '13px'
-            }}>
+            <div className="friends-alert friends-alert--error">
               {error}
             </div>
           )}
 
           {isBanned && (
-            <div style={{
-              marginBottom: '14px',
-              padding: '10px 12px',
-              borderRadius: '8px',
-              border: '1px solid var(--brand-border)',
-              background: '#ffffff',
-              color: 'var(--brand-primary)',
-              fontSize: '13px'
-            }}>
+            <div className="friends-alert friends-alert--muted">
               Friend and follow actions are disabled while your account is banned.
             </div>
           )}
 
-          <section style={{ marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '16px', marginBottom: '8px' }}>Friends ({network.friends.length})</h3>
+          <section className="friends-section">
+            <h3 className="friends-section-title">Friends ({network.friends.length})</h3>
             <input
               type="text"
               value={friendsQuery}
               onChange={(event) => setFriendsQuery(event.target.value)}
               placeholder="Search friends by username or name"
-              className="form-input"
-              style={{ marginBottom: '10px' }}
+              className="form-input friends-search-input"
             />
 
             {loadingNetwork ? (
-              <p style={{ textAlign: 'center', color: 'var(--brand-primary)', padding: '18px 0' }}>Loading friends...</p>
+              <p className="friends-empty-state">Loading friends...</p>
             ) : friendsQuery.trim() && filteredFriends.length === 0 && network.friends.length > 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--brand-primary)', padding: '18px 0' }}>No friends found for your search.</p>
+              <p className="friends-empty-state">No friends found for your search.</p>
             ) : (
               renderNetworkList(filteredFriends, 'friends')
             )}
           </section>
 
-          <section style={{ marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '16px', marginBottom: '8px' }}>Discover</h3>
+          <section className="friends-section">
+            <h3 className="friends-section-title">Discover</h3>
             <input
               type="text"
               value={discoverQuery}
               onChange={(event) => setDiscoverQuery(event.target.value)}
               placeholder="Search username, first name, or last name"
-              className="form-input"
-              style={{ marginBottom: '10px' }}
+              className="form-input friends-search-input"
             />
 
             {loadingDiscover ? (
-              <p style={{ textAlign: 'center', color: 'var(--brand-primary)', padding: '18px 0' }}>Loading discover users...</p>
+              <p className="friends-empty-state">Loading discover users...</p>
             ) : discoverUsers.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--brand-primary)', padding: '18px 0' }}>
+              <p className="friends-empty-state">
                 {discoverQuery.trim() ? 'No users found for your search.' : 'No users to discover right now.'}
               </p>
             ) : (
@@ -573,27 +544,27 @@ const Friends: React.FC = () => {
             )}
           </section>
 
-          <section style={{ borderTop: '1px solid var(--brand-border)', paddingTop: '14px' }}>
-            <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>Requests and Network</h3>
+          <section className="friends-section friends-section--network">
+            <h3 className="friends-section-title">Requests and Network</h3>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+            <div className="friends-tab-row">
               <button
                 type="button"
-                style={tabButtonStyle(activeNetworkTab === 'requests')}
+                className={`friends-tab-btn ${activeNetworkTab === 'requests' ? 'active' : ''}`}
                 onClick={() => setActiveNetworkTab('requests')}
               >
                 Requests ({network.incomingFriendRequests.length})
               </button>
               <button
                 type="button"
-                style={tabButtonStyle(activeNetworkTab === 'following')}
+                className={`friends-tab-btn ${activeNetworkTab === 'following' ? 'active' : ''}`}
                 onClick={() => setActiveNetworkTab('following')}
               >
                 Following ({network.following.length})
               </button>
               <button
                 type="button"
-                style={tabButtonStyle(activeNetworkTab === 'followers')}
+                className={`friends-tab-btn ${activeNetworkTab === 'followers' ? 'active' : ''}`}
                 onClick={() => setActiveNetworkTab('followers')}
               >
                 Followers ({network.followers.length})
@@ -601,7 +572,7 @@ const Friends: React.FC = () => {
             </div>
 
             {loadingNetwork ? (
-              <p style={{ textAlign: 'center', color: 'var(--brand-primary)', padding: '18px 0' }}>Loading network...</p>
+              <p className="friends-empty-state">Loading network...</p>
             ) : activeNetworkTab === 'requests' ? (
               renderRequestsSection()
             ) : activeNetworkTab === 'following' ? (

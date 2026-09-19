@@ -103,3 +103,5 @@ server/uploads/
 
 # Local admin prototype (do not commit)
 Admin/
+.vercel
+.env*

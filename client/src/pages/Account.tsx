@@ -164,35 +164,35 @@ const Account: React.FC = () => {
 
   return (
     <SettingsLayout>
-    <div>
+    <div className="settings-page settings-page--account">
       <h1 className="settings-page-title">Account</h1>
       
       <div className="card settings-page-card">
-        <h3 style={{ marginBottom: '20px' }}>Account Information</h3>
+        <h3 className="settings-card-title">Account Information</h3>
         
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Username</label>
+        <div className="account-info-row" style={{ marginBottom: '15px' }}>
+          <label className="account-info-label" style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Username</label>
           <p>{user?.username}</p>
         </div>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Email</label>
+        <div className="account-info-row" style={{ marginBottom: '15px' }}>
+          <label className="account-info-label" style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Email</label>
           <p>{user?.email}</p>
         </div>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Full Name</label>
+        <div className="account-info-row" style={{ marginBottom: '15px' }}>
+          <label className="account-info-label" style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Full Name</label>
           <p>{`${user?.firstName || ''} ${user?.middleName || ''} ${user?.lastName || ''}`.trim() || 'Not provided'}</p>
         </div>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Email Verification Status</label>
+        <div className="account-info-row" style={{ marginBottom: '15px' }}>
+          <label className="account-info-label" style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Email Verification Status</label>
           <p>{user?.emailVerified ? '✓ Verified' : '⚠ Not verified'}</p>
         </div>
       </div>
 
       <div className="card settings-page-card">
-        <h3 style={{ marginBottom: '20px' }}>Account Actions</h3>
+        <h3 className="settings-card-title">Account Actions</h3>
         <div className="settings-actions">
           <button
             className="btn-primary"
@@ -229,6 +229,7 @@ const Account: React.FC = () => {
 
         {(error || success) && (
           <div
+            className={`account-action-message ${error ? 'error' : 'success'}`}
             style={{
               marginTop: '14px',
               padding: '10px 12px',
@@ -244,7 +245,7 @@ const Account: React.FC = () => {
         )}
 
         {activeAction === 'password' && (
-          <form onSubmit={handleChangePassword} style={{ marginTop: '16px' }}>
+          <form onSubmit={handleChangePassword} className="account-action-form" style={{ marginTop: '16px' }}>
             <div style={{ marginBottom: '8px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '5px' }}>Current Password</label>
               <input
@@ -285,7 +286,7 @@ const Account: React.FC = () => {
         )}
 
         {activeAction === 'email' && (
-          <form onSubmit={handleUpdateEmail} style={{ marginTop: '16px' }}>
+          <form onSubmit={handleUpdateEmail} className="account-action-form" style={{ marginTop: '16px' }}>
             <div style={{ marginBottom: '10px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '5px' }}>New Email</label>
               <input
@@ -304,8 +305,8 @@ const Account: React.FC = () => {
         )}
 
         {activeAction === 'delete' && (
-          <form onSubmit={handleDeleteAccount} style={{ marginTop: '16px' }}>
-            <p style={{ fontSize: '13px', color: '#b42318', marginBottom: '8px' }}>
+          <form onSubmit={handleDeleteAccount} className="account-action-form" style={{ marginTop: '16px' }}>
+            <p className="account-delete-warning" style={{ fontSize: '13px', color: '#b42318', marginBottom: '8px' }}>
               This permanently deletes your account and posts. This cannot be undone.
             </p>
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import PostCard from '../components/PostCard';
 import { Post } from '../types';
 import { apiFetch } from '../utils/apiFetch';
@@ -24,20 +24,34 @@ type SubjectReviewResponse = {
   reviews?: Post[];
 };
 
+type ReviewSortOption = 'recent' | 'highest' | 'lowest' | 'helpful';
+
+const SORT_OPTIONS: { value: ReviewSortOption; label: string }[] = [
+  { value: 'recent', label: 'Most recent' },
+  { value: 'highest', label: 'Highest rated' },
+  { value: 'lowest', label: 'Lowest rated' },
+  { value: 'helpful', label: 'Most helpful' }
+];
+
 const formatWholeRating = (value: number) => Math.round(Number(value) || 0);
 
 const Reviews: React.FC = () => {
   const { token, user } = useAuth();
+  const [searchParams] = useSearchParams();
   const isBanned = Boolean(user?.isBanned);
   const [query, setQuery] = React.useState('');
   const [subjects, setSubjects] = React.useState<ReviewSubject[]>([]);
   const [subjectsLoading, setSubjectsLoading] = React.useState(true);
   const [subjectsError, setSubjectsError] = React.useState('');
-  const [selectedSubjectKey, setSelectedSubjectKey] = React.useState('');
+  const [selectedSubjectKey, setSelectedSubjectKey] = React.useState(() => searchParams.get('subject') || '');
   const [selectedSubject, setSelectedSubject] = React.useState<ReviewSubject | null>(null);
   const [reviews, setReviews] = React.useState<Post[]>([]);
   const [reviewsLoading, setReviewsLoading] = React.useState(false);
   const [reviewsError, setReviewsError] = React.useState('');
+  const [sortOption, setSortOption] = React.useState<ReviewSortOption>('recent');
+  const [isFollowingSubject, setIsFollowingSubject] = React.useState(false);
+  const [followLoading, setFollowLoading] = React.useState(false);
+  const hasPendingDeepLinkSubject = React.useRef(Boolean(searchParams.get('subject')));
 
   const fetchSubjects = React.useCallback(async (searchText: string) => {
     setSubjectsLoading(true);
@@ -72,6 +86,11 @@ const Reviews: React.FC = () => {
       }
 
       setSelectedSubjectKey((current) => {
+        if (hasPendingDeepLinkSubject.current) {
+          hasPendingDeepLinkSubject.current = false;
+          return current;
+        }
+
         if (current && nextSubjects.some((subject) => subject.subjectKey === current)) {
           return current;
         }
@@ -90,7 +109,7 @@ const Reviews: React.FC = () => {
     }
   }, []);
 
-  const fetchSubjectReviews = React.useCallback(async (subjectKey: string) => {
+  const fetchSubjectReviews = React.useCallback(async (subjectKey: string, sort: ReviewSortOption) => {
     if (!subjectKey) {
       setSelectedSubject(null);
       setReviews([]);
@@ -101,7 +120,7 @@ const Reviews: React.FC = () => {
     setReviewsError('');
 
     try {
-      const response = await apiFetch(`/api/posts/reviews/subjects/${encodeURIComponent(subjectKey)}/reviews?limit=30`);
+      const response = await apiFetch(`/api/posts/reviews/subjects/${encodeURIComponent(subjectKey)}/reviews?limit=30&sort=${sort}`);
 
       if (!response.ok) {
         setSelectedSubject(null);
@@ -132,13 +151,68 @@ const Reviews: React.FC = () => {
   }, [query, fetchSubjects]);
 
   React.useEffect(() => {
-    fetchSubjectReviews(selectedSubjectKey);
-  }, [selectedSubjectKey, fetchSubjectReviews]);
+    fetchSubjectReviews(selectedSubjectKey, sortOption);
+  }, [selectedSubjectKey, sortOption, fetchSubjectReviews]);
+
+  React.useEffect(() => {
+    if (!selectedSubjectKey || !token) {
+      setIsFollowingSubject(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const response = await apiFetch(`/api/posts/reviews/subjects/${encodeURIComponent(selectedSubjectKey)}/follow`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!response.ok || cancelled) return;
+
+        const data = await response.json();
+        if (!cancelled) setIsFollowingSubject(Boolean(data.following));
+      } catch (error) {
+        console.error('Error fetching follow status:', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSubjectKey, token]);
+
+  const handleToggleFollowSubject = async () => {
+    if (!selectedSubjectKey || !token || followLoading) return;
+
+    setFollowLoading(true);
+    const previousValue = isFollowingSubject;
+    setIsFollowingSubject(!previousValue);
+
+    try {
+      const response = await apiFetch(`/api/posts/reviews/subjects/${encodeURIComponent(selectedSubjectKey)}/follow`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update follow status');
+      }
+
+      const data = await response.json();
+      setIsFollowingSubject(Boolean(data.following));
+    } catch (error) {
+      console.error('Error toggling follow:', error);
+      setIsFollowingSubject(previousValue);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   const refreshSubjectReviews = React.useCallback(async () => {
     if (!selectedSubjectKey) return;
-    await fetchSubjectReviews(selectedSubjectKey);
-  }, [selectedSubjectKey, fetchSubjectReviews]);
+    await fetchSubjectReviews(selectedSubjectKey, sortOption);
+  }, [selectedSubjectKey, sortOption, fetchSubjectReviews]);
 
   const handleLike = async (postId: string) => {
     try {
@@ -179,6 +253,8 @@ const Reviews: React.FC = () => {
       console.error('Error adding comment:', error);
     }
   };
+
+  const visibleReviews = reviews.slice(0, 6);
 
   return (
     <div className="feed-page">
@@ -292,10 +368,34 @@ const Reviews: React.FC = () => {
               padding: '14px',
               marginBottom: '14px'
             }}>
-              <div style={{ color: 'var(--brand-muted)', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>
-                {selectedSubject.category}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+                <div>
+                  <div style={{ color: 'var(--brand-muted)', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>
+                    {selectedSubject.category}
+                  </div>
+                  <h2 style={{ color: 'var(--brand-accent)', fontSize: '22px', marginBottom: '8px' }}>{selectedSubject.subjectName}</h2>
+                </div>
+                {token && (
+                  <button
+                    type="button"
+                    onClick={handleToggleFollowSubject}
+                    disabled={followLoading}
+                    style={{
+                      flexShrink: 0,
+                      border: '1px solid var(--brand-accent)',
+                      borderRadius: '999px',
+                      padding: '7px 14px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: followLoading ? 'not-allowed' : 'pointer',
+                      background: isFollowingSubject ? 'var(--brand-accent)' : '#fff',
+                      color: isFollowingSubject ? '#fff' : 'var(--brand-accent)'
+                    }}
+                  >
+                    {isFollowingSubject ? 'Following' : 'Follow'}
+                  </button>
+                )}
               </div>
-              <h2 style={{ color: 'var(--brand-accent)', fontSize: '22px', marginBottom: '8px' }}>{selectedSubject.subjectName}</h2>
               <div style={{ color: '#2e7d32', fontSize: '15px', fontWeight: 700, marginBottom: '4px' }}>
                 Global Rating: {formatWholeRating(selectedSubject.globalRating || 0)} / 5
               </div>
@@ -305,20 +405,41 @@ const Reviews: React.FC = () => {
             </div>
           )}
 
+          {selectedSubjectKey && reviews.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', marginBottom: '10px' }}>
+              <label htmlFor="review-sort-select" style={{ fontSize: '12px', color: 'var(--brand-muted)' }}>Sort by</label>
+              <select
+                id="review-sort-select"
+                value={sortOption}
+                onChange={(event) => setSortOption(event.target.value as ReviewSortOption)}
+                className="form-input"
+                style={{ maxWidth: '180px', marginBottom: 0, padding: '6px 10px', fontSize: '13px' }}
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {reviewsLoading && <p style={{ color: 'var(--brand-muted)', fontSize: '14px' }}>Loading reviews...</p>}
           {!reviewsLoading && reviewsError && <p style={{ color: '#c62828', fontSize: '14px' }}>{reviewsError}</p>}
           {!reviewsLoading && !reviewsError && selectedSubjectKey && reviews.length === 0 && (
             <p style={{ color: 'var(--brand-muted)', fontSize: '14px' }}>No reviews found for this subject.</p>
           )}
 
-          {!reviewsLoading && !reviewsError && reviews.map((post) => (
-            <PostCard
-              key={post._id}
-              post={post}
-              onLike={handleLike}
-              onComment={handleComment}
-            />
-          ))}
+          {!reviewsLoading && !reviewsError && visibleReviews.length > 0 && (
+            <div className="review-grid">
+              {visibleReviews.map((post) => (
+                <PostCard
+                  key={post._id}
+                  post={post}
+                  onLike={handleLike}
+                  onComment={handleComment}
+                />
+              ))}
+            </div>
+          )}
         </section>
       </div>
     </div>
