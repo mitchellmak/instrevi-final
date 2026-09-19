@@ -6,3 +6,4 @@
 /client/build/**
 /client/.vercel/**
 /client/.env*
+/client/android/**

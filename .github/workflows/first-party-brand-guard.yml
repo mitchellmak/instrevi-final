@@ -68,7 +68,14 @@ jobs:
             exit 0
           fi
 
-          if grep -nEHi "$PATTERN" "${filtered_files[@]}"; then
+          matches="$(grep -nEHi "$PATTERN" "${filtered_files[@]}" || true)"
+
+          # Allow the standard Twitter/X Card meta tag names, which are required verbatim
+          # by the Twitter Card spec for link-preview rendering and are not brand promotion.
+          matches="$(printf '%s\n' "$matches" | grep -vE 'name="twitter:(card|title|description|image)"' | sed '/^$/d' || true)"
+
+          if [ -n "$matches" ]; then
+            echo "$matches"
             echo "::error::Restricted platform-brand keyword found in first-party files."
             exit 1
           fi
